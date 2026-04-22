@@ -24,6 +24,7 @@ import { getUserProfile } from '../../src/services/authService'
 import { uploadProfilePhoto } from '../../src/services/storageService'
 import { isValidNickname, isValidPassword } from '../../src/utils/validation'
 import { SkeletonNotifItem, SkeletonFriendRow } from '../../src/components/Skeleton'
+import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 type Tab = 'profile' | 'notifications' | 'friends'
 
@@ -248,12 +249,13 @@ export default function MyPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
   const displayName = profile?.nickname || '사용자'
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={cs.safe} edges={['top']}>
       {/* 헤더 */}
-      <View style={s.header}>
+      <View style={cs.header}>
         <AppText title style={s.logo}>내정보</AppText>
         <TouchableOpacity onPress={() => router.push('/settings')} style={s.settingsBtn}>
           <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
@@ -321,7 +323,7 @@ export default function MyPage() {
         {tab === 'profile' && (
           <View style={s.section}>
             {/* 기본 정보 */}
-            <AppText style={s.sectionTitle}>기본 정보</AppText>
+            <AppText style={cs.sectionTitle}>기본 정보</AppText>
             {[
               { label: '이메일', value: profile?.email || user?.email || '-' },
               { label: '생년월일', value: profile?.birthdate?.replace(/-/g, '.') || '-' },
@@ -334,11 +336,11 @@ export default function MyPage() {
             ))}
 
             {/* 닉네임 변경 */}
-            <AppText style={[s.sectionTitle, { marginTop: 20 }]}>닉네임 변경</AppText>
+            <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>닉네임 변경</AppText>
             <View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput
-                  style={[s.input, nickMsg && s.inputError, { flex: 1 }]}
+                  style={[cs.input, nickMsg && cs.inputError, { flex: 1 }]}
                   placeholder="새 닉네임 (2~12자)"
                   placeholderTextColor={colors.gray500}
                   value={newNick}
@@ -349,14 +351,14 @@ export default function MyPage() {
                   {nickChecking ? <ActivityIndicator color={colors.primary} size="small" /> : <AppText style={s.checkBtnText}>{nickStatus === 'ok' ? '완료' : '중복확인'}</AppText>}
                 </TouchableOpacity>
               </View>
-              {nickMsg && <AppText style={[s.errMsg, nickStatus === 'ok' && { color: '#16a34a' }]}>{nickMsg}</AppText>}
+              {nickMsg && <AppText style={[cs.errMsg, nickStatus === 'ok' && { color: '#16a34a' }]}>{nickMsg}</AppText>}
             </View>
-            <TouchableOpacity style={s.btnPrimary} onPress={handleNickSave} disabled={nickSaving}>
+            <TouchableOpacity style={[cs.btnPrimary, { paddingVertical: 13, marginTop: 4 }]} onPress={handleNickSave} disabled={nickSaving}>
               {nickSaving ? <ActivityIndicator color="#fff" size="small" /> : <AppText style={s.btnPrimaryText}>변경하기</AppText>}
             </TouchableOpacity>
 
             {/* 비밀번호 변경 */}
-            <AppText style={[s.sectionTitle, { marginTop: 20 }]}>비밀번호 변경</AppText>
+            <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>비밀번호 변경</AppText>
             {([
               { key: 'current' as const, placeholder: '현재 비밀번호' },
               { key: 'next' as const, placeholder: '새 비밀번호 (영문+숫자 8자 이상)' },
@@ -364,17 +366,17 @@ export default function MyPage() {
             ]).map(f => (
               <View key={f.key}>
                 <TextInput
-                  style={[s.input, pwErrors[f.key] && s.inputError]}
+                  style={[cs.input, pwErrors[f.key] && cs.inputError, { paddingHorizontal: 12, paddingVertical: 11 }]}
                   placeholder={f.placeholder}
                   placeholderTextColor={colors.gray500}
                   value={pwForm[f.key]}
                   onChangeText={v => { setPwForm(p => ({ ...p, [f.key]: v })); setPwErrors(e => ({ ...e, [f.key]: undefined })) }}
                   secureTextEntry
                 />
-                {pwErrors[f.key] && <AppText style={s.errMsg}>{pwErrors[f.key]}</AppText>}
+                {pwErrors[f.key] && <AppText style={cs.errMsg}>{pwErrors[f.key]}</AppText>}
               </View>
             ))}
-            <TouchableOpacity style={s.btnPrimary} onPress={handlePwSave} disabled={pwSaving}>
+            <TouchableOpacity style={[cs.btnPrimary, { paddingVertical: 13, marginTop: 4 }]} onPress={handlePwSave} disabled={pwSaving}>
               {pwSaving ? <ActivityIndicator color="#fff" size="small" /> : <AppText style={s.btnPrimaryText}>변경하기</AppText>}
             </TouchableOpacity>
           </View>
@@ -510,18 +512,18 @@ export default function MyPage() {
 
       {/* 친구 정리 확인 모달 */}
       {friendToRemove && (
-        <View style={s.confirmOverlay}>
-          <View style={s.confirmModal}>
-          <AppText style={s.confirmTitle}><AppText style={s.confirmTitleStrong}>{friendToRemove.nickname}</AppText>님과 친구를 정리할까요?</AppText>
-            <AppText style={s.confirmDesc}>상대방에게도 동시에 적용되어{'\n'}더이상 친구의 조각을 볼 수 없어요😭</AppText>
-            <View style={s.confirmActions}>
-              <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setFriendToRemove(null)}>
-                <AppText style={s.confirmCancelText}>취소</AppText>
+        <View style={cs.confirmOverlay}>
+          <View style={cs.confirmModal}>
+            <AppText style={cs.confirmTitle}><AppText style={s.confirmTitleStrong}>{friendToRemove.nickname}</AppText>님과 친구를 정리할까요?</AppText>
+            <AppText style={cs.confirmDesc}>상대방에게도 동시에 적용되어{'\n'}더이상 친구의 조각을 볼 수 없어요😭</AppText>
+            <View style={cs.confirmActions}>
+              <TouchableOpacity style={cs.confirmCancelBtn} onPress={() => setFriendToRemove(null)}>
+                <AppText style={cs.confirmCancelText}>취소</AppText>
               </TouchableOpacity>
-              <TouchableOpacity style={s.confirmDangerBtn} onPress={confirmRemoveFriend} disabled={removingFriend}>
+              <TouchableOpacity style={cs.confirmDangerBtn} onPress={confirmRemoveFriend} disabled={removingFriend}>
                 {removingFriend
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <AppText style={s.confirmDangerText}>정리하기</AppText>}
+                  : <AppText style={cs.confirmDangerText}>정리하기</AppText>}
               </TouchableOpacity>
             </View>
           </View>
@@ -530,16 +532,16 @@ export default function MyPage() {
 
       {/* 로그아웃 확인 모달 */}
       {showLogoutModal && (
-        <View style={s.confirmOverlay}>
-          <View style={s.confirmModal}>
-            <AppText style={s.confirmTitle}>로그아웃 할까요?</AppText>
-            <AppText style={s.confirmDesc}>로그아웃하면 로그인 화면으로 이동해요 🙌</AppText>
-            <View style={s.confirmActions}>
-              <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setShowLogoutModal(false)}>
-                <AppText style={s.confirmCancelText}>취소</AppText>
+        <View style={cs.confirmOverlay}>
+          <View style={cs.confirmModal}>
+            <AppText style={cs.confirmTitle}>로그아웃 할까요?</AppText>
+            <AppText style={cs.confirmDesc}>로그아웃하면 로그인 화면으로 이동해요 🙌</AppText>
+            <View style={cs.confirmActions}>
+              <TouchableOpacity style={cs.confirmCancelBtn} onPress={() => setShowLogoutModal(false)}>
+                <AppText style={cs.confirmCancelText}>취소</AppText>
               </TouchableOpacity>
-              <TouchableOpacity style={s.confirmDangerBtn} onPress={confirmLogout}>
-                <AppText style={s.confirmDangerText}>로그아웃</AppText>
+              <TouchableOpacity style={cs.confirmDangerBtn} onPress={confirmLogout}>
+                <AppText style={cs.confirmDangerText}>로그아웃</AppText>
               </TouchableOpacity>
             </View>
           </View>
@@ -551,12 +553,6 @@ export default function MyPage() {
 
 function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 12,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
     logo: { fontSize: 24, fontWeight: '800', color: colors.primary },
     settingsBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
     profileRow: {
@@ -581,21 +577,12 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     tabBtnTextActive: { color: colors.primary, fontWeight: '700' },
     body: { padding: 20, paddingBottom: 30 },
     section: { gap: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 4 },
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
     infoLabel: { fontSize: 15, color: colors.textMuted },
     infoValue: { fontSize: 14, fontWeight: '500', color: colors.text },
-    input: {
-      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16, color: colors.text,
-      fontFamily: 'GmarketSansMedium'
-    },
-    inputError: { borderColor: colors.danger },
-    errMsg: { fontSize: 14, color: colors.danger, marginTop: 4 },
     checkBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center', minWidth: 72 },
     checkBtnOk: { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
     checkBtnText: { fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'center' },
-    btnPrimary: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
     btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
     emptyText: { textAlign: 'center', color: colors.textMuted, fontSize: 17, paddingVertical: 32 },
     emptyFriendWrap: { alignItems: 'center', gap: 4 },
@@ -629,15 +616,6 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     removeBtnText: { fontSize: 14, color: colors.danger, fontWeight: '600' },
     photoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
     photoLarge: { width: '90%', height: '70%' },
-    confirmOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-    confirmModal: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: '88%', gap: 12 },
-    confirmTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
     confirmTitleStrong: { fontSize: 20, fontWeight: '700', color: colors.primaryDark },
-    confirmDesc: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-    confirmActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-    confirmCancelBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    confirmCancelText: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
-    confirmDangerBtn: { flex: 1, backgroundColor: colors.danger, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    confirmDangerText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   })
 }

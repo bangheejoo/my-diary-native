@@ -19,6 +19,7 @@ import { getUserProfile } from '../src/services/authService'
 import { today, toKoreanDate } from '../src/utils/formatDate'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import CalendarView from '../src/components/CalendarView'
+import { makeCommonStyles } from '../src/theme/commonStyles'
 
 type Visibility = 'private' | 'friends' | 'us'
 
@@ -152,9 +153,10 @@ export default function WriteModal() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   return (
-    <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={cs.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {/* 헤더 */}
         <View style={s.header}>
@@ -184,7 +186,7 @@ export default function WriteModal() {
           <View style={s.section}>
             <AppText style={s.label}>오늘의 조각</AppText>
             <TextInput
-              style={[s.input, s.textarea]}
+              style={[cs.input, s.textarea]}
               multiline
               value={content}
               onChangeText={setContent}
@@ -265,11 +267,11 @@ export default function WriteModal() {
 
       {/* 친구 선택 모달 */}
       <Modal visible={showFriendPicker} transparent animationType="slide" onRequestClose={() => setShowFriendPicker(false)}>
-        <Pressable style={s.dateOverlay} onPress={() => setShowFriendPicker(false)}>
+        <Pressable style={cs.sheetOverlay} onPress={() => setShowFriendPicker(false)}>
           <Pressable style={s.dateSheet} onPress={e => e.stopPropagation()}>
             <View style={s.dateSheetHeader}>
               <AppText style={s.dateSheetTitle}>같이 볼 친구 선택😍</AppText>
-              <TouchableOpacity onPress={() => setShowFriendPicker(false)} style={s.sheetCloseBtn}>
+              <TouchableOpacity onPress={() => setShowFriendPicker(false)} style={cs.sheetCloseBtn}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -289,11 +291,11 @@ export default function WriteModal() {
 
       {/* 날짜 선택 모달 */}
       <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-        <Pressable style={s.dateOverlay} onPress={() => setShowDatePicker(false)}>
+        <Pressable style={cs.sheetOverlay} onPress={() => setShowDatePicker(false)}>
           <Pressable style={s.dateSheet} onPress={e => e.stopPropagation()}>
             <View style={s.dateSheetHeader}>
               <AppText style={s.dateSheetTitle}>날짜 선택</AppText>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)} style={s.sheetCloseBtn}>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)} style={cs.sheetCloseBtn}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -310,7 +312,6 @@ export default function WriteModal() {
 
 function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
     header: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: 8, paddingVertical: 10,
@@ -321,11 +322,6 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
     body: { padding: 16, gap: 20, paddingBottom: 40 },
     section: { gap: 10 },
     label: { fontSize: 16, fontWeight: '700', color: colors.text },
-    input: {
-      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.text,
-      fontFamily: 'GmarketSansMedium', 
-    },
     textarea: { minHeight: 140, lineHeight: 26 },
     visibilityBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -342,13 +338,11 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
       borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
     },
     datePickerText: { flex: 1, fontSize: 15, color: colors.text, fontWeight: '600' },
-    dateOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     dateSheet: {
       backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
       padding: 20, paddingBottom: 34,
     },
     dateSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginRight: -8 },
-    sheetCloseBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     dateSheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
     imagePicker: {
       borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border,

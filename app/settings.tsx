@@ -13,6 +13,7 @@ import { deleteAccount, updateNotifSettings } from '../src/services/authService'
 import type { NotifSettings } from '../src/services/authService'
 import { DEFAULT_NOTIF_SETTINGS } from '../src/services/authService'
 import type { ColorTheme } from '../src/theme/colors'
+import { makeCommonStyles } from '../src/theme/commonStyles'
 
 type Visibility = 'private' | 'friends' | 'us'
 
@@ -97,10 +98,11 @@ export default function SettingsPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
-      <View style={s.header}>
+    <SafeAreaView style={cs.safe} edges={['top']}>
+      <View style={cs.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <AppText style={s.back}>〈</AppText>
         </TouchableOpacity>
@@ -111,7 +113,7 @@ export default function SettingsPage() {
       <ScrollView contentContainerStyle={s.body}>
         {/* 테마 */}
         <View style={s.section}>
-          <AppText style={s.sectionTitle}>테마</AppText>
+          <AppText style={cs.sectionTitle}>테마</AppText>
           <View style={s.themeRow}>
             {[
               { label: '라이트모드', icon: '☀️', dark: false },
@@ -131,7 +133,7 @@ export default function SettingsPage() {
 
         {/* 색상 */}
         <View style={s.section}>
-          <AppText style={s.sectionTitle}>색상 테마</AppText>
+          <AppText style={cs.sectionTitle}>색상 테마</AppText>
           <View style={s.colorRow}>
             {COLOR_OPTIONS.map(opt => (
               <TouchableOpacity
@@ -152,7 +154,7 @@ export default function SettingsPage() {
 
         {/* 폰트 크기 */}
         <View style={s.section}>
-          <AppText style={s.sectionTitle}>글자 크기</AppText>
+          <AppText style={cs.sectionTitle}>글자 크기</AppText>
           <View style={s.fontRow}>
             {FONT_OPTIONS.map(opt => (
               <TouchableOpacity
@@ -168,7 +170,7 @@ export default function SettingsPage() {
 
         {/* 기본 공개범위 */}
         <View style={s.section}>
-          <AppText style={s.sectionTitle}>기본 공개범위</AppText>
+          <AppText style={cs.sectionTitle}>기본 공개범위</AppText>
           {VISIBILITY_OPTIONS.map(opt => (
             <TouchableOpacity
               key={opt.value}
@@ -183,7 +185,7 @@ export default function SettingsPage() {
 
         {/* 알림 설정 */}
         <View style={s.section}>
-          <AppText style={s.sectionTitle}>알림 설정</AppText>
+          <AppText style={cs.sectionTitle}>알림 설정</AppText>
 
           {/* 전체 알림 */}
           <View style={s.notifRow}>
@@ -217,7 +219,7 @@ export default function SettingsPage() {
 
         {/* 계정 삭제 */}
         <View style={[s.section, { marginTop: 12 }]}>
-          <AppText style={s.sectionTitle}>계정 삭제</AppText>
+          <AppText style={cs.sectionTitle}>계정 삭제</AppText>
           <AppText style={s.dangerDesc}>※ 계정을 삭제하면 모든 데이터가 삭제되며 복구할 수 없어요</AppText>
           <TouchableOpacity style={s.dangerBtn} onPress={() => setShowDeleteModal(true)}>
             <AppText style={s.dangerBtnText}>계정 삭제</AppText>
@@ -227,24 +229,24 @@ export default function SettingsPage() {
 
       {/* 계정 삭제 확인 모달 */}
       {showDeleteModal && (
-        <View style={s.deleteOverlay}>
-          <View style={s.deleteModal}>
+        <View style={cs.confirmOverlay}>
+          <View style={cs.confirmModal}>
             <AppText style={s.deleteModalTitle}>계정을 정말 삭제할까요?</AppText>
             <AppText style={s.deleteModalDesc}>삭제된 데이터는 복구할 수 없어요🔥</AppText>
             <TextInput
-              style={s.input}
+              style={cs.input}
               placeholder="비밀번호를 입력해 주세요"
               placeholderTextColor={colors.gray500}
               value={deletePassword}
               onChangeText={setDeletePassword}
               secureTextEntry
             />
-            <View style={s.deleteActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowDeleteModal(false); setDeletePassword('') }}>
-                <AppText style={s.cancelBtnText}>취소</AppText>
+            <View style={cs.confirmActions}>
+              <TouchableOpacity style={cs.confirmCancelBtn} onPress={() => { setShowDeleteModal(false); setDeletePassword('') }}>
+                <AppText style={cs.confirmCancelText}>취소</AppText>
               </TouchableOpacity>
-              <TouchableOpacity style={s.confirmDeleteBtn} onPress={handleDeleteAccount} disabled={deleting}>
-                {deleting ? <ActivityIndicator color="#fff" size="small" /> : <AppText style={s.confirmDeleteBtnText}>삭제하기</AppText>}
+              <TouchableOpacity style={cs.confirmDangerBtn} onPress={handleDeleteAccount} disabled={deleting}>
+                {deleting ? <ActivityIndicator color="#fff" size="small" /> : <AppText style={cs.confirmDangerText}>삭제하기</AppText>}
               </TouchableOpacity>
             </View>
           </View>
@@ -256,18 +258,11 @@ export default function SettingsPage() {
 
 function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 12,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
     backBtn: { width: 44, height: 44, justifyContent: 'center' },
     back: { fontSize: 18, color: colors.textMuted },
     title: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center' },
     body: { padding: 16, paddingBottom: 48, gap: 20 },
     section: { gap: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
     themeRow: { flexDirection: 'row', gap: 8 },
     themeBtn: {
       flex: 1, alignItems: 'center', gap: 8, paddingVertical: 16,
@@ -319,22 +314,7 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
       borderWidth: 1.5, borderColor: colors.primaryDark, borderRadius: 10, paddingVertical: 13, alignItems: 'center',
     },
     dangerBtnText: { color: colors.primaryDark, fontWeight: '700', fontSize: 15 },
-    deleteOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-    deleteModal: {
-      backgroundColor: colors.surface, borderRadius: 16,
-      padding: 24, width: '88%', gap: 12,
-    },
     deleteModalTitle: { fontSize: 21, fontWeight: '700', color: colors.text },
     deleteModalDesc: { fontSize: 15, color: colors.textMuted, lineHeight: 18 },
-    input: {
-      backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
-      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: colors.text,
-      fontFamily: 'GmarketSansMedium',
-    },
-    deleteActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    cancelBtnText: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
-    confirmDeleteBtn: { flex: 1, backgroundColor: colors.danger, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    confirmDeleteBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   })
 }

@@ -21,6 +21,7 @@ import { useLocalSearchParams } from 'expo-router'
 import PostCard from '../../src/components/PostCard'
 import CalendarView from '../../src/components/CalendarView'
 import { SkeletonPostCard } from '../../src/components/Skeleton'
+import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 interface FriendWithProfile extends Friendship {
   nickname: string
@@ -149,6 +150,7 @@ export default function FriendsPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   const renderPost = ({ item }: { item: Post }) => {
     const friend = friends.find(f => f.friendUid === item.uid)
@@ -164,9 +166,9 @@ export default function FriendsPage() {
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={cs.safe} edges={['top']}>
       {/* 헤더 */}
-      <View style={s.header}>
+      <View style={cs.header}>
         <AppText title style={s.logo}>친구의 조각</AppText>
         <TouchableOpacity onPress={() => { setShowAddModal(true) }} style={s.addBtn}>
           <Ionicons name="person-add-outline" size={22} color={colors.textMuted} />
@@ -251,12 +253,12 @@ export default function FriendsPage() {
       {/* 친구 추가 모달 */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <Pressable style={s.modalOverlay} onPress={() => { setShowAddModal(false); setSearchQuery(''); setSearchResults([]); setSearched(false) }}>
-          <Pressable style={s.addModal} onPress={e => e.stopPropagation()}>
-            <View style={s.addModalHeader}>
-              <AppText style={s.addModalTitle}>친구찾기</AppText>
+        <Pressable style={cs.sheetOverlay} onPress={() => { setShowAddModal(false); setSearchQuery(''); setSearchResults([]); setSearched(false) }}>
+          <Pressable style={[cs.sheet, { gap: 14 }]} onPress={e => e.stopPropagation()}>
+            <View style={cs.sheetHeader}>
+              <AppText style={cs.sheetTitle}>친구찾기</AppText>
               <TouchableOpacity
-                style={s.closeBtn}
+                style={cs.sheetCloseBtn}
                 onPress={() => { setShowAddModal(false); setSearchQuery(''); setSearchResults([]); setSearched(false) }}
               >
                 <AppText style={s.closeBtnText}>✕</AppText>
@@ -323,12 +325,6 @@ export default function FriendsPage() {
 
 function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 12,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
     logo: { fontSize: 24, fontWeight: '800', color: colors.primary },
     addBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
     filterContainer: {
@@ -364,14 +360,6 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
       paddingHorizontal: 22, paddingVertical: 12,
     },
     findFriendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    addModal: {
-      backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      padding: 20, paddingBottom: 34, gap: 14,
-    },
-    addModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    addModalTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
-    closeBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', marginRight: -8 },
     closeBtnText: { fontSize: 18, color: colors.textMuted },
     searchRow: { flexDirection: 'row', gap: 8 },
     searchInput: {

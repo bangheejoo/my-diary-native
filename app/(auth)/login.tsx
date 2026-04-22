@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { logIn } from '../../src/services/authService'
 import { useTheme } from '../../src/context/ThemeContext'
 import { useToast } from '../../src/context/ToastContext'
+import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 export default function LoginPage() {
   const { colors } = useTheme()
@@ -42,9 +43,10 @@ export default function LoginPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={cs.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
           <AppText title style={s.logo}>하루조각</AppText>
@@ -53,7 +55,7 @@ export default function LoginPage() {
           <View style={s.form}>
             <View style={s.field}>
               <TextInput
-                style={[s.input, errors.email ? s.inputError : null]}
+                style={[cs.input, errors.email ? cs.inputError : null]}
                 placeholder="이메일을 입력해 주세요"
                 placeholderTextColor={colors.gray500}
                 value={email}
@@ -67,7 +69,7 @@ export default function LoginPage() {
 
             <View style={s.field}>
               <TextInput
-                style={[s.input, errors.password ? s.inputError : null]}
+                style={[cs.input, errors.password ? cs.inputError : null]}
                 placeholder="비밀번호를 입력해 주세요"
                 placeholderTextColor={colors.gray500}
                 value={password}
@@ -77,7 +79,7 @@ export default function LoginPage() {
               {errors.password && <AppText style={s.errMsg}>{errors.password}</AppText>}
             </View>
 
-            <TouchableOpacity style={s.btnPrimary} onPress={handleLogin} disabled={loading}>
+            <TouchableOpacity style={[cs.btnPrimary, { marginTop: 8 }]} onPress={handleLogin} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="#fff" />
                 : <AppText style={s.btnPrimaryText}>로그인</AppText>}
@@ -96,7 +98,7 @@ export default function LoginPage() {
             </View>
 
             <Link href="/(auth)/signup" asChild>
-              <TouchableOpacity style={s.btnOutline}>
+              <TouchableOpacity style={cs.btnOutline}>
                 <AppText style={s.btnOutlineText}>회원가입</AppText>
               </TouchableOpacity>
             </Link>
@@ -109,40 +111,13 @@ export default function LoginPage() {
 
 function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
     container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
     logo: { fontSize: 32, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 8 },
     sub: { fontSize: 16, color: colors.textMuted, textAlign: 'center', marginBottom: 40 },
     form: { gap: 12 },
     field: { gap: 4 },
-    input: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 15,
-      color: colors.text,
-      fontFamily: 'GmarketSansMedium',
-    },
-    inputError: { borderColor: colors.danger },
     errMsg: { fontSize: 14, color: colors.danger, marginTop: 2 },
-    btnPrimary: {
-      backgroundColor: colors.primary,
-      borderRadius: 10,
-      paddingVertical: 14,
-      alignItems: 'center',
-      marginTop: 8,
-    },
     btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 18 },
-    btnOutline: {
-      borderWidth: 1.5,
-      borderColor: colors.primary,
-      borderRadius: 10,
-      paddingVertical: 13,
-      alignItems: 'center',
-    },
     btnOutlineText: { color: colors.primary, fontWeight: '600', fontSize: 18 },
     linkBtn: { alignItems: 'center', paddingVertical: 10 },
     linkText: { color: colors.textMuted, fontSize: 14 },

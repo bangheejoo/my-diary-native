@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { sendPasswordReset } from '../../src/services/authService'
 import { useTheme } from '../../src/context/ThemeContext'
 import { useToast } from '../../src/context/ToastContext'
+import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 export default function ResetPasswordPage() {
   const { colors } = useTheme()
@@ -28,12 +29,13 @@ export default function ResetPasswordPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={cs.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <AppText style={s.back}>〈 로그인가기</AppText>
+        <TouchableOpacity onPress={() => router.back()} style={cs.backBtn}>
+          <AppText style={cs.backText}>〈 로그인가기</AppText>
         </TouchableOpacity>
 
         <AppText style={s.title}>비밀번호 찾기</AppText>
@@ -49,7 +51,7 @@ export default function ResetPasswordPage() {
         ) : (
           <View style={{ gap: 12 }}>
             <TextInput
-              style={s.input}
+              style={cs.input}
               placeholder="이메일을 입력해 주세요"
               placeholderTextColor={colors.gray500}
               value={email}
@@ -58,7 +60,7 @@ export default function ResetPasswordPage() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <TouchableOpacity style={s.btnPrimary} onPress={handleReset} disabled={loading}>
+            <TouchableOpacity style={cs.btnPrimary} onPress={handleReset} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <AppText style={s.btnPrimaryText}>재설정 메일 보내기</AppText>}
             </TouchableOpacity>
           </View>
@@ -70,23 +72,8 @@ export default function ResetPasswordPage() {
 
 function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
-    backBtn: { padding: 8, marginLeft: -8, marginBottom: 30 },
-    back: { fontSize: 18, color: colors.textMuted },
     title: { fontSize: 28, fontWeight: '700', color: colors.text, marginBottom: 12 },
     desc: { fontSize: 16, color: colors.textMuted, marginBottom: 32 },
-    input: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 16,
-      color: colors.text,
-      fontFamily: 'GmarketSansMedium',
-    },
-    btnPrimary: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
     btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 18 },
     btnOutline: { borderWidth: 1.5, borderColor: colors.primaryDark2, borderRadius: 15, alignItems: 'center', marginTop: 14 },
     btnOutlineText: { color: colors.primaryDark2, fontWeight: '600', fontSize: 14, padding: 12 },

@@ -12,6 +12,7 @@ import { getUserProfile } from '../services/authService'
 import { getMyFriends, getFriendshipStatus, sendFriendRequest } from '../services/friendService'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
+import { makeCommonStyles } from '../theme/commonStyles'
 
 interface CommentWithNick extends Comment {
   nickname: string
@@ -163,6 +164,7 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   const renderMentioned = (content: string) => {
     const parts = content.split(/(@[^\s@]+)/g)
@@ -202,12 +204,12 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
-          <Pressable style={s.overlay} onPress={handleClose}>
+          <Pressable style={cs.sheetOverlay} onPress={handleClose}>
             <Pressable style={s.sheet} onPress={e => e.stopPropagation()}>
               {/* 시트 헤더 */}
               <View style={s.sheetHeader}>
-                <AppText style={s.sheetTitle}>댓글 {commentCount > 0 ? commentCount : ''}</AppText>
-                <TouchableOpacity onPress={handleClose} style={s.iconBtn}>
+                <AppText style={cs.sheetTitle}>댓글 {commentCount > 0 ? commentCount : ''}</AppText>
+                <TouchableOpacity onPress={handleClose} style={cs.headerIconBtn}>
                   <AppText style={s.closeText}>✕</AppText>
                 </TouchableOpacity>
               </View>
@@ -285,7 +287,7 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
           {userModal && (
             <Pressable style={s.profileOverlay} onPress={() => setUserModal(null)}>
               <Pressable style={s.profileCard} onPress={e => e.stopPropagation()}>
-                <TouchableOpacity style={[s.iconBtn, s.profileCloseBtn]} onPress={() => setUserModal(null)}>
+                <TouchableOpacity style={[cs.headerIconBtn, s.profileCloseBtn]} onPress={() => setUserModal(null)}>
                   <AppText style={s.closeText}>✕</AppText>
                 </TouchableOpacity>
                 <View style={s.modalAvatar}>
@@ -340,7 +342,6 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
     toggleText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
     chevron: { fontSize: 18, color: colors.textMuted },
     // 바텀시트
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: colors.surface,
       borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -351,8 +352,6 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
       paddingHorizontal: 20, paddingBottom: 8,
       borderBottomWidth: 0.5, borderBottomColor: colors.border,
     },
-    sheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-    iconBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     closeText: { fontSize: 18, color: colors.textMuted },
     commentList: { paddingHorizontal: 16, paddingTop: 10, maxHeight: 340 },
     emptyText: { fontSize: 16, color: colors.textMuted, textAlign: 'center', paddingVertical: 24, marginBottom: 8 },
