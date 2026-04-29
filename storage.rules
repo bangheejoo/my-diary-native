@@ -1,0 +1,42 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── posts/{uid}/{파일} ──────────────────────────────────────
+    // 본인 폴더에만 업로드/삭제 가능, 읽기는 로그인 사용자 모두 가능
+    match /posts/{uid}/{fileName} {
+
+      // 읽기: 로그인한 사용자 (친구 피드에서 이미지 표시)
+      allow read: if request.auth != null;
+
+      // 업로드: 본인 폴더에만, 이미지 파일만, 5MB 이하
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 5 * 1024 * 1024;
+
+      // 삭제: 본인 폴더만
+      allow delete: if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+    // ── profiles/{uid}/{avatar, avatar_thumb} ─────────────────
+    // 프로필 사진: 본인만 업로드/삭제, 로그인 사용자 모두 읽기 가능
+    match /profiles/{uid}/{fileName} {
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 2 * 1024 * 1024;
+
+      allow delete: if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+    // 그 외 경로 전부 차단
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

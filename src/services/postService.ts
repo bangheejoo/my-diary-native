@@ -9,6 +9,7 @@ import {
   deleteDoc,
   getDoc,
   getDocs,
+  getCountFromServer,
   query,
   where,
   orderBy,
@@ -35,6 +36,8 @@ export interface Post {
   targetUid: string | null
   imageUrl: string | null
   imageStoragePath: string | null
+  withUids?: string[]
+  withNicknames?: string[]
   createdAt?: unknown
   updatedAt?: unknown
 }
@@ -47,6 +50,8 @@ export async function createPost({
   targetUid = null,
   imageUrl = null,
   imageStoragePath = null,
+  withUids = [],
+  withNicknames = [],
 }: {
   uid: string
   content: string
@@ -55,6 +60,8 @@ export async function createPost({
   targetUid?: string | null
   imageUrl?: string | null
   imageStoragePath?: string | null
+  withUids?: string[]
+  withNicknames?: string[]
 }): Promise<string> {
   const ref = await addDoc(collection(db, 'posts'), {
     uid,
@@ -64,6 +71,8 @@ export async function createPost({
     targetUid: visibility === 'us' ? targetUid : null,
     imageUrl,
     imageStoragePath,
+    withUids,
+    withNicknames,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -80,6 +89,8 @@ export async function updatePost(
     imageUrl,
     imageStoragePath,
     oldImageStoragePath,
+    withUids = [],
+    withNicknames = [],
   }: {
     content: string
     recordDate: string
@@ -88,6 +99,8 @@ export async function updatePost(
     imageUrl?: string | null
     imageStoragePath?: string | null
     oldImageStoragePath?: string | null
+    withUids?: string[]
+    withNicknames?: string[]
   }
 ) {
   if (oldImageStoragePath && oldImageStoragePath !== imageStoragePath) {
@@ -100,6 +113,8 @@ export async function updatePost(
     targetUid: visibility === 'us' ? (targetUid ?? null) : null,
     imageUrl: imageUrl ?? null,
     imageStoragePath: imageStoragePath ?? null,
+    withUids,
+    withNicknames,
     updatedAt: serverTimestamp(),
   })
 }
@@ -148,6 +163,16 @@ export async function getMyPostsPaged(
     lastDoc: pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null,
     hasMore,
   }
+}
+
+export async function getMyPostCount(uid: string): Promise<number> {
+  const snap = await getCountFromServer(query(collection(db, 'posts'), where('uid', '==', uid)))
+  return snap.data().count
+}
+
+export async function getWithMePostCount(uid: string): Promise<number> {
+  const snap = await getCountFromServer(query(collection(db, 'posts'), where('withUids', 'array-contains', uid)))
+  return snap.data().count
 }
 
 export async function getPostCountByDate(uid: string, dateStr: string): Promise<number> {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native'
 import AppText from '../../src/components/AppText'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { sendPasswordReset } from '../../src/services/authService'
 import { useTheme } from '../../src/context/ThemeContext'
@@ -34,8 +35,8 @@ export default function ResetPasswordPage() {
   return (
     <SafeAreaView style={cs.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
-        <TouchableOpacity onPress={() => router.back()} style={cs.backBtn}>
-          <AppText style={cs.backText}>〈 로그인가기</AppText>
+        <TouchableOpacity onPress={() => router.back()} style={cs.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={18} color={colors.text} />
         </TouchableOpacity>
 
         <AppText style={s.title}>비밀번호 찾기</AppText>

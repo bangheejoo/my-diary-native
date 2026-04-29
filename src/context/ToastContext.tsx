@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react'
-import { View, Text, StyleSheet, Animated, Platform } from 'react-native'
+import { View, Text, StyleSheet, Animated, Platform, Keyboard } from 'react-native'
 
 interface ToastMessage {
   id: number
@@ -19,6 +19,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    Keyboard.dismiss()
     const id = ++toastCounter
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => {

@@ -27,6 +27,11 @@ export async function getCommentCount(postId: string): Promise<number> {
   return snap.data().count
 }
 
+export async function getMyCommentCount(uid: string): Promise<number> {
+  const snap = await getCountFromServer(query(collection(db, 'comments'), where('uid', '==', uid)))
+  return snap.data().count
+}
+
 export async function getComments(postId: string): Promise<Comment[]> {
   const q = query(
     collection(db, 'comments'),

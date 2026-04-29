@@ -1,29 +1,33 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   View, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Modal, Pressable, Image, Alert,
+  ActivityIndicator, Modal, Pressable, Alert,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native'
 import AppText from './AppText'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { getComments, getCommentCount, addComment, deleteComment } from '../services/commentService'
 import type { Comment } from '../services/commentService'
 import { getUserProfile } from '../services/authService'
-import { getMyFriends, getFriendshipStatus, sendFriendRequest } from '../services/friendService'
+import { getMyFriends } from '../services/friendService'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { makeCommonStyles } from '../theme/commonStyles'
+import { isBirthday } from '../utils/formatDate'
 
 interface CommentWithNick extends Comment {
   nickname: string
   photoUrl?: string | null
   photoThumbUrl?: string | null
+  isBirthday: boolean
 }
 
 interface FriendSummary {
   uid: string
   nickname: string
   photoUrl?: string | null
+  photoThumbUrl?: string | null
 }
 
 function timeAgo(ts: unknown): string {
@@ -40,11 +44,10 @@ interface Props {
   postId: string
   postUid: string
   currentUserUid: string
+  onProfilePress: (uid: string, nickname: string, photoThumb?: string | null) => void
 }
 
-type ModalStatus = { status: string; requesterId?: string } | null | 'loading' | 'me'
-
-export default function CommentSection({ postId, postUid, currentUserUid }: Props) {
+export default function CommentSection({ postId, postUid, currentUserUid, onProfilePress }: Props) {
   const { colors } = useTheme()
   const { showToast } = useToast()
   const [open, setOpen] = useState(false)
@@ -54,11 +57,8 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [friends, setFriends] = useState<FriendSummary[]>([])
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const inputRef = useRef<TextInput>(null)
-
-  const [userModal, setUserModal] = useState<{ uid: string; nickname: string; photoUrl?: string | null } | null>(null)
-  const [modalStatus, setModalStatus] = useState<ModalStatus>('loading')
-  const [requesting, setRequesting] = useState(false)
 
   useEffect(() => {
     getCommentCount(postId).then(setCommentCount).catch(() => {})
@@ -80,6 +80,7 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
         nickname: profiles[i]?.nickname || '알 수 없음',
         photoUrl: profiles[i]?.photoUrl,
         photoThumbUrl: profiles[i]?.photoThumbUrl,
+        isBirthday: isBirthday(profiles[i]?.privateBirthdate ? undefined : profiles[i]?.birthdate),
       })))
     } catch {
       showToast('댓글을 불러오지 못했어요', 'error')
@@ -96,8 +97,29 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
         uid: f.friendUid,
         nickname: profiles[i]?.nickname || '',
         photoUrl: profiles[i]?.photoUrl,
+        photoThumbUrl: profiles[i]?.photoThumbUrl,
       })))
     } catch {}
+  }
+
+  function handleProfilePress(uid: string, nickname: string, photoThumb?: string | null) {
+    setOpen(false)
+    setInput('')
+    setMentionQuery(null)
+    setTimeout(() => onProfilePress(uid, nickname, photoThumb), 350)
+  }
+
+  function handleInputChange(text: string) {
+    setInput(text)
+    const match = text.match(/@([^\s@]*)$/)
+    setMentionQuery(match ? match[1] : null)
+  }
+
+  function handleMentionSelect(nickname: string) {
+    const newText = input.replace(/@([^\s@]*)$/, `@${nickname} `)
+    setInput(newText)
+    setMentionQuery(null)
+    inputRef.current?.focus()
   }
 
   async function handleSubmit() {
@@ -137,32 +159,6 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
     ])
   }
 
-  async function handleUserClick(uid: string, nickname: string, photoUrl?: string | null) {
-    setUserModal({ uid, nickname, photoUrl })
-    if (uid === currentUserUid) { setModalStatus('me'); return }
-    setModalStatus('loading')
-    try {
-      const s = await getFriendshipStatus(currentUserUid, uid)
-      setModalStatus(s as ModalStatus)
-    } catch {
-      setModalStatus(null)
-    }
-  }
-
-  async function handleFriendRequest() {
-    if (!userModal) return
-    setRequesting(true)
-    try {
-      await sendFriendRequest(currentUserUid, userModal.uid)
-      setModalStatus({ status: 'pending', requesterId: currentUserUid })
-      showToast('친구 요청을 보냈어요', 'success')
-    } catch (err) {
-      showToast((err as Error).message || '요청에 실패했어요', 'error')
-    } finally {
-      setRequesting(false)
-    }
-  }
-
   const s = makeStyles(colors)
   const cs = makeCommonStyles(colors)
 
@@ -179,42 +175,26 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
     )
   }
 
-  function handleOpen() {
-    setOpen(true)
-  }
-
-  function handleClose() {
-    setOpen(false)
-    setInput('')
-  }
-
   return (
     <View>
-      {/* 댓글 토글 버튼 */}
-      <TouchableOpacity style={s.toggleBtn} onPress={handleOpen}>
+      <TouchableOpacity style={s.toggleBtn} onPress={() => setOpen(true)}>
         <AppText style={s.toggleText}>
           💬 댓글{commentCount > 0 ? ` ${commentCount}개` : '없음😭'}
         </AppText>
-        <AppText style={s.chevron}> 〉</AppText>
+        <Ionicons name="chevron-forward" size={18} color={colors.gray400} />
       </TouchableOpacity>
 
-      {/* 댓글 바텀시트 모달 */}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <Pressable style={cs.sheetOverlay} onPress={handleClose}>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => { setOpen(false); setInput('') }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <Pressable style={cs.sheetOverlay} onPress={() => { setOpen(false); setInput('') }}>
             <Pressable style={s.sheet} onPress={e => e.stopPropagation()}>
-              {/* 시트 헤더 */}
               <View style={s.sheetHeader}>
                 <AppText style={cs.sheetTitle}>댓글 {commentCount > 0 ? commentCount : ''}</AppText>
-                <TouchableOpacity onPress={handleClose} style={cs.headerIconBtn}>
+                <TouchableOpacity onPress={() => { setOpen(false); setInput('') }} style={cs.headerIconBtn}>
                   <AppText style={s.closeText}>✕</AppText>
                 </TouchableOpacity>
               </View>
 
-              {/* 댓글 목록 */}
               <ScrollView
                 style={s.commentList}
                 keyboardShouldPersistTaps="handled"
@@ -227,19 +207,22 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
                 ) : (
                   comments.map(c => (
                     <View key={c.id} style={s.commentItem}>
-                      <TouchableOpacity
-                        onPress={() => handleUserClick(c.uid, c.nickname, c.photoUrl)}
-                        style={s.avatar}
-                      >
-                        {(c.photoThumbUrl || c.photoUrl) ? (
-                          <Image source={{ uri: c.photoThumbUrl || c.photoUrl! }} style={s.avatarImg} />
-                        ) : (
-                          <AppText style={s.avatarText}>{c.nickname[0]}</AppText>
-                        )}
-                      </TouchableOpacity>
+                      <View style={{ position: 'relative' }}>
+                        <TouchableOpacity
+                          onPress={() => handleProfilePress(c.uid, c.nickname, c.photoThumbUrl ?? c.photoUrl)}
+                          style={[s.avatar, c.isBirthday && s.birthdayAvatar]}
+                        >
+                          {(c.photoThumbUrl || c.photoUrl) ? (
+                            <Image source={{ uri: c.photoThumbUrl || c.photoUrl! }} style={s.avatarImg} cachePolicy="memory-disk" />
+                          ) : (
+                            <AppText style={s.avatarText}>{c.nickname[0]}</AppText>
+                          )}
+                        </TouchableOpacity>
+                        {c.isBirthday && <AppText style={s.birthdayBadge}>🎂</AppText>}
+                      </View>
                       <View style={{ flex: 1 }}>
                         <View style={s.commentHeader}>
-                          <TouchableOpacity onPress={() => handleUserClick(c.uid, c.nickname, c.photoUrl)}>
+                          <TouchableOpacity onPress={() => handleProfilePress(c.uid, c.nickname, c.photoThumbUrl ?? c.photoUrl)}>
                             <AppText style={s.commentNick}>{c.nickname}</AppText>
                           </TouchableOpacity>
                           <AppText style={s.commentTime}>{timeAgo(c.createdAt)}</AppText>
@@ -256,13 +239,41 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
                 )}
               </ScrollView>
 
-              {/* 댓글 입력 */}
+              {mentionQuery !== null && (() => {
+                const suggestions = friends.filter(f =>
+                  f.nickname.toLowerCase().startsWith(mentionQuery.toLowerCase())
+                )
+                if (suggestions.length === 0) return null
+                return (
+                  <ScrollView
+                    style={s.mentionList}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {suggestions.map(f => (
+                      <TouchableOpacity
+                        key={f.uid}
+                        style={s.mentionItem}
+                        onPress={() => handleMentionSelect(f.nickname)}
+                      >
+                        <View style={s.mentionAvatar}>
+                          {(f.photoThumbUrl || f.photoUrl)
+                            ? <Image source={{ uri: f.photoThumbUrl || f.photoUrl! }} style={s.mentionAvatarImg} cachePolicy="memory-disk" />
+                            : <AppText style={s.mentionAvatarText}>{f.nickname[0]}</AppText>}
+                        </View>
+                        <AppText style={s.mentionNick}>@{f.nickname}</AppText>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )
+              })()}
+
               <View style={s.inputRow}>
                 <TextInput
                   ref={inputRef}
                   style={s.input}
                   value={input}
-                  onChangeText={setInput}
+                  onChangeText={handleInputChange}
                   placeholder="댓글을 입력해 주세요"
                   placeholderTextColor={colors.gray500}
                   maxLength={100}
@@ -279,56 +290,11 @@ export default function CommentSection({ postId, postUid, currentUserUid }: Prop
                     : <AppText style={s.sendBtnText}>남기기</AppText>}
                 </TouchableOpacity>
               </View>
-
             </Pressable>
           </Pressable>
-
-          {/* 프로필 팝업 — KAV 직하위 absolute, sheet 밖 */}
-          {userModal && (
-            <Pressable style={s.profileOverlay} onPress={() => setUserModal(null)}>
-              <Pressable style={s.profileCard} onPress={e => e.stopPropagation()}>
-                <TouchableOpacity style={[cs.headerIconBtn, s.profileCloseBtn]} onPress={() => setUserModal(null)}>
-                  <AppText style={s.closeText}>✕</AppText>
-                </TouchableOpacity>
-                <View style={s.modalAvatar}>
-                  {userModal.photoUrl ? (
-                    <Image source={{ uri: userModal.photoUrl }} style={s.modalAvatarImg} />
-                  ) : (
-                    <AppText style={s.modalAvatarText}>{userModal.nickname[0]}</AppText>
-                  )}
-                </View>
-                <AppText style={s.modalNick}>{userModal.nickname}</AppText>
-
-                {modalStatus === 'me' ? (
-                  <View style={[s.statusBadge, { backgroundColor: colors.primaryLight2 }]}>
-                    <AppText style={[s.statusBadgeText, { color: colors.primary }]}>나예요</AppText>
-                  </View>
-                ) : modalStatus === 'loading' ? (
-                  <ActivityIndicator color={colors.primary} />
-                ) : modalStatus === null ? (
-                  <TouchableOpacity style={s.requestBtn} onPress={handleFriendRequest} disabled={requesting}>
-                    {requesting
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <AppText style={s.requestBtnText}>친구 요청 보내기</AppText>}
-                  </TouchableOpacity>
-                ) : (modalStatus as { status: string }).status === 'accepted' ? (
-                  <View style={[s.statusBadge, { backgroundColor: colors.mint }]}>
-                    <AppText style={s.statusBadgeText}>이미 친구예요</AppText>
-                  </View>
-                ) : (modalStatus as { status: string; requesterId?: string }).requesterId === currentUserUid ? (
-                  <View style={[s.statusBadge, { backgroundColor: colors.gray200 }]}>
-                    <AppText style={s.statusBadgeText}>요청을 보냈어요</AppText>
-                  </View>
-                ) : (
-                  <View style={[s.statusBadge, { backgroundColor: colors.primaryLight }]}>
-                    <AppText style={s.statusBadgeText}>나에게 요청을 보냈어요</AppText>
-                  </View>
-                )}
-              </Pressable>
-            </Pressable>
-          )}
         </KeyboardAvoidingView>
       </Modal>
+
     </View>
   )
 }
@@ -340,12 +306,10 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
       paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border,
     },
     toggleText: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
-    chevron: { fontSize: 18, color: colors.textMuted },
-    // 바텀시트
     sheet: {
       backgroundColor: colors.surface,
       borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      paddingTop: 16, maxHeight: '75%', paddingBottom: 25
+      paddingTop: 16, maxHeight: '75%', paddingBottom: 25,
     },
     sheetHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -361,10 +325,12 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
       backgroundColor: colors.primaryLight,
       justifyContent: 'center', alignItems: 'center', flexShrink: 0, overflow: 'hidden',
     },
+    birthdayAvatar: { borderWidth: 2, borderColor: '#F59E0B' },
+    birthdayBadge: { position: 'absolute', bottom: -4, right: -4, fontSize: 14 },
     avatarImg: { width: 40, height: 40 },
     avatarText: { fontSize: 15, fontWeight: '700', color: colors.primary },
     commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    commentNick: { fontSize: 14, fontWeight: '700', color: colors.text },
+    commentNick: { fontSize: 14, fontWeight: '700', color: colors.text, lineHeight: 18 },
     commentTime: { fontSize: 14, color: colors.gray500 },
     deleteBtn: { marginLeft: 'auto', marginRight: 18 },
     commentText: { fontSize: 15, color: colors.text, lineHeight: 25 },
@@ -378,6 +344,7 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
       flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
       borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9,
       fontSize: 15, color: colors.text, fontFamily: 'GmarketSansMedium',
+      textAlignVertical: 'center', includeFontPadding: false,
     },
     sendBtn: {
       backgroundColor: colors.primary, borderRadius: 20,
@@ -385,31 +352,23 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
     },
     sendBtnDisabled: { opacity: 0.45 },
     sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    // 프로필 팝업 (KAV 안 absolute — 전체 화면)
-    profileOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center', alignItems: 'center',
+    mentionList: {
+      maxHeight: 160,
+      borderTopWidth: 1, borderTopColor: colors.border,
+      backgroundColor: colors.surface,
     },
-    profileCard: {
-      backgroundColor: colors.surface, borderRadius: 16,
-      padding: 24, width: 280, alignItems: 'center', gap: 12,
+    mentionItem: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingHorizontal: 16, paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
     },
-    profileCloseBtn: { alignSelf: 'flex-end', marginRight: -10, marginTop: -10 },
-    modalAvatar: {
-      width: 72, height: 72, borderRadius: 36,
+    mentionAvatar: {
+      width: 32, height: 32, borderRadius: 16,
       backgroundColor: colors.primaryLight,
       justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
     },
-    modalAvatarImg: { width: 72, height: 72 },
-    modalAvatarText: { fontSize: 28, fontWeight: '700', color: colors.primary },
-    modalNick: { fontSize: 18, fontWeight: '700', color: colors.text },
-    requestBtn: {
-      backgroundColor: colors.primary, borderRadius: 10,
-      paddingVertical: 11, paddingHorizontal: 24, alignItems: 'center', width: '100%',
-    },
-    requestBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-    statusBadge: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
-    statusBadgeText: { fontSize: 15, fontWeight: '600', color: colors.text },
+    mentionAvatarImg: { width: 32, height: 32 },
+    mentionAvatarText: { fontSize: 13, fontWeight: '700', color: colors.primary },
+    mentionNick: { fontSize: 14, fontWeight: '600', color: colors.primary },
   })
 }

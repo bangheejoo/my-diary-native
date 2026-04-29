@@ -37,7 +37,13 @@
     "scheme": "mydiary",
     "plugins": [
       "expo-router",
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "갤러리에서 사진을 선택해 오늘의 조각에 담아보세요",
+          "cameraPermission": "카메라로 사진을 찍어 오늘의 조각에 담아보세요"
+        }
+      ],
       [
         "expo-notifications",
         {

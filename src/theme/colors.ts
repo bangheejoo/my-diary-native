@@ -1,4 +1,4 @@
-export type ColorTheme = 'pink' | 'blue' | 'green' | 'yellow' | 'purple'
+export type ColorTheme = 'pink' | 'blue' | 'green' | 'yellow' | 'purple' | 'coral'
 
 const themes: Record<ColorTheme, {
   primary: string
@@ -21,17 +21,17 @@ const themes: Record<ColorTheme, {
   blue: {
     primary: '#6aa3ff',
     primaryLight: '#BFD9FF',
-    primaryLight2: '#EAF4FF',
-    primaryDark: '#5896fc',
-    primaryDark2: '#3076e7',
+    primaryLight2: '#d1e2f5',
+    primaryDark: '#4078d4',
+    primaryDark2: '#1c55b0',
     mint: '#FFE2BD',
     mintDark: '#d2a263',
   },
   green: {
     primary: '#9bd428',
-    primaryLight: '#B5E655',
-    primaryLight2: '#F0FFF9',
-    primaryDark: '#7bb010',
+    primaryLight: '#b8f051',
+    primaryLight2: '#d7f79c',
+    primaryDark: '#63930b',
     primaryDark2: '#4d7005',
     mint: '#90ddd3',
     mintDark: '#36988b',
@@ -39,7 +39,7 @@ const themes: Record<ColorTheme, {
   yellow: {
     primary: '#fcd06a',
     primaryLight: '#ffea98',
-    primaryLight2: '#FFFBEB',
+    primaryLight2: '#f7ecc5',
     primaryDark: '#fac549',
     primaryDark2: '#d8a122',
     mint: '#93df6d',
@@ -47,12 +47,21 @@ const themes: Record<ColorTheme, {
   },
   purple: {
     primary: '#b993ff',
-    primaryLight: '#D6C8F2',
-    primaryLight2: '#F6F2FF',
+    primaryLight: '#cfb8ea',
+    primaryLight2: '#e4dafb',
     primaryDark: '#744bc0',
     primaryDark2: '#4d298f',
     mint: '#F7CAC9',
     mintDark: '#a35e5d',
+  },
+  coral: {
+    primary: '#FF9A8B',
+    primaryLight: '#FFC3A0',
+    primaryLight2: '#FFE5D9',
+    primaryDark: '#FF6F61',
+    primaryDark2: '#C94C42',
+    mint: '#FFE8D6',
+    mintDark: '#E29578',
   },
 }
 
@@ -70,6 +79,7 @@ export const lightColors = {
   surface: '#FFFFFF',
   border: '#e5e7eb',
   text: '#0D0D0D',
+  badgeText: '#0D0D0D',
   textMuted: '#6b7280',
   danger: '#ef4444',
   dangerLight: '#fee2e2',
@@ -81,6 +91,7 @@ export const darkColors = {
   surface: '#1f2937',
   border: '#374151',
   text: '#f9fafb',
+  badgeText: '#374151',
   textMuted: '#9ca3af',
   white: '#1f2937',
   black: '#f9fafb',

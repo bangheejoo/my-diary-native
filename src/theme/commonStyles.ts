@@ -25,8 +25,10 @@ export function makeCommonStyles(colors: AppColors) {
       borderWidth: 1, borderColor: colors.border,
       borderRadius: 10,
       paddingHorizontal: 14, paddingVertical: 12,
-      fontSize: 15, color: colors.text,
+      fontSize: 15, lineHeight: 16, color: colors.text,
       fontFamily: 'GmarketSansMedium',
+      textAlignVertical: 'center',
+      includeFontPadding: false,
     },
     inputError: { borderColor: colors.danger },
     inputOk:    { borderColor: '#16a34a' },
@@ -87,6 +89,57 @@ export function makeCommonStyles(colors: AppColors) {
     },
     sheetTitle:    { fontSize: 18, fontWeight: '700', color: colors.text },
     sheetCloseBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+
+    // ── Tab bar ──────────────────────────────────────────────
+    tabBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1, borderBottomColor: colors.border,
+    },
+    tabBtn: {
+      flex: 1, height: 44,
+      justifyContent: 'center', alignItems: 'center',
+      borderBottomWidth: 2, borderBottomColor: 'transparent',
+    },
+    tabBtnActive:     { borderBottomColor: colors.primary },
+    tabBtnText:       { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
+    tabBtnTextActive: { color: colors.primary, fontWeight: '700' },
+
+    // ── Tutorial ─────────────────────────────────────────────
+    tutorialOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.72)',
+      justifyContent: 'center',
+      paddingHorizontal: 28,
+    },
+    tutorialCloseBtn: {
+      position: 'absolute',
+      right: 20,
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    tutorialCard: {
+      borderRadius: 24, padding: 24, gap: 0,
+    },
+    tutorialCardTitle: {
+      fontSize: 21, fontWeight: '700',
+    },
+    tutorialRow: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 14,
+    },
+    tutorialIconBox: {
+      width: 44, height: 44, borderRadius: 14,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    tutorialTextWrap: { flex: 1, gap: 8, paddingTop: 2 },
+    tutorialLabel:    { fontSize: 17, fontWeight: '700', marginTop: 3 },
+    tutorialDesc:     { fontSize: 14, lineHeight: 19 },
+    tutorialDivider:  { height: 1, marginVertical: 18 },
+    tutorialDoneBtn:  { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 24 },
+    tutorialDoneBtnText: { fontSize: 16, fontWeight: '700' },
+    tutorialNeverBtn:    { alignItems: 'center', paddingVertical: 12 },
+    tutorialNeverText:   { fontSize: 15, textDecorationLine: 'underline' },
   })
 }
 

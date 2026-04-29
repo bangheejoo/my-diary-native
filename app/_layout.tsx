@@ -62,7 +62,7 @@ export default function RootLayout() {
         <AuthProvider>
           <ToastProvider>
             <PushNotificationSetup />
-            <Stack screenOptions={{ headerShown: false }} />
+            <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 220 }} />
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>

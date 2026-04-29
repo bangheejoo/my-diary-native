@@ -5,7 +5,12 @@
       "Bash(npx expo *)",
       "Bash(npm install *)",
       "Bash(npx tsc *)",
-      "Bash(firebase *)"
+      "Bash(firebase *)",
+      "Bash(grep -E \"^d|^-.*\\\\.\\(tsx|ts|json\\)$\")",
+      "Bash(python *)",
+      "Bash(node *)",
+      "Bash(sed -n '164,185p' app/onboarding.tsx)",
+      "Bash(sed -n '241,270p' app/onboarding.tsx)"
     ]
   }
 }

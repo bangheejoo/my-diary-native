@@ -1,34 +1,32 @@
-import { useState, useRef } from 'react'
-import { Animated, View, StyleSheet } from 'react-native'
+import { useState } from 'react'
+import { View, StyleSheet } from 'react-native'
+import { Image } from 'expo-image'
 import { SkeletonBox } from './Skeleton'
 
 interface Props {
   uri: string
   style?: object
-  resizeMode?: 'cover' | 'contain' | 'stretch' | 'center'
+  resizeMode?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down'
 }
 
 export default function LazyImage({ uri, style, resizeMode = 'cover' }: Props) {
-  const [loaded, setLoaded] = useState(false)
-  const opacity = useRef(new Animated.Value(0)).current
+  const [showSkeleton, setShowSkeleton] = useState(true)
   const flat = StyleSheet.flatten(style) as Record<string, unknown> | undefined
   const borderRadius = (flat?.borderRadius as number) ?? 0
 
-  function onLoad() {
-    setLoaded(true)
-    Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }).start()
-  }
-
   return (
     <View style={[style, { overflow: 'hidden' }]}>
-      {!loaded && (
+      {showSkeleton && (
         <SkeletonBox style={[StyleSheet.absoluteFill, { borderRadius }]} />
       )}
-      <Animated.Image
+      <Image
         source={{ uri }}
-        style={[StyleSheet.absoluteFill, { opacity }]}
-        resizeMode={resizeMode}
-        onLoad={onLoad}
+        style={StyleSheet.absoluteFill}
+        contentFit={resizeMode}
+        transition={250}
+        cachePolicy="memory-disk"
+        onLoad={() => setShowSkeleton(false)}
+        onError={() => setShowSkeleton(false)}
       />
     </View>
   )

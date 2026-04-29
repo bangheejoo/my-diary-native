@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, Image, Modal, Pressable, RefreshControl,
+  ActivityIndicator, Modal, Pressable, RefreshControl,
 } from 'react-native'
 import AppText from '../../src/components/AppText'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -12,23 +12,28 @@ import { useAuth } from '../../src/context/AuthContext'
 import { useTheme } from '../../src/context/ThemeContext'
 import { useToast } from '../../src/context/ToastContext'
 import {
-  updateNickname, changePassword, isNicknameTaken, logOut, updateProfilePhoto,
+  updateNickname, changePassword, isNicknameTaken, logOut, updateProfilePhoto, updateBio, updatePrivacySettings,
 } from '../../src/services/authService'
 import {
   getMyNotifications, acceptFriendRequest, rejectFriendRequest,
   removeFriend, markNotificationRead, markAllNotificationsRead,
   getFriendshipStatus, getMyFriends,
 } from '../../src/services/friendService'
+import { getMyPostCount, getWithMePostCount } from '../../src/services/postService'
+import { getMyCommentCount } from '../../src/services/commentService'
 import type { Notification, Friendship } from '../../src/services/friendService'
 import { getUserProfile } from '../../src/services/authService'
 import { uploadProfilePhoto } from '../../src/services/storageService'
 import { isValidNickname, isValidPassword } from '../../src/utils/validation'
 import { SkeletonNotifItem, SkeletonFriendRow } from '../../src/components/Skeleton'
+import ProfileModal from '../../src/components/ProfileModal'
+import { isBirthday, formatPhone } from '../../src/utils/formatDate'
+import { Image } from 'expo-image'
 import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 type Tab = 'profile' | 'notifications' | 'friends'
 
-interface FriendWithProfile extends Friendship { nickname: string; email: string; photoUrl?: string | null; photoThumbUrl?: string | null }
+interface FriendWithProfile extends Friendship { nickname: string; email: string; photoUrl?: string | null; photoThumbUrl?: string | null; birthdate?: string | null }
 
 function timeAgo(ts: unknown): string {
   if (!ts || typeof (ts as { toDate?: unknown }).toDate !== 'function') return ''
@@ -48,6 +53,17 @@ export default function MyPage() {
   const [tab, setTab] = useState<Tab>((params.tab as Tab) || 'profile')
   const [unreadCount, setUnreadCount] = useState(0)
 
+  // 한마디 & 활동
+  const [bio, setBio] = useState('')
+  const [editingBio, setEditingBio] = useState(false)
+  const [bioSaving, setBioSaving] = useState(false)
+  const [stats, setStats] = useState<{ postCount: number; commentCount: number; withMeCount: number } | null>(null)
+  const bioBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 비공개 설정
+  const [privateBirthdate, setPrivateBirthdate] = useState(false)
+  const [privatePhone, setPrivatePhone] = useState(false)
+
   // 프로필
   const [newNick, setNewNick] = useState('')
   const [nickStatus, setNickStatus] = useState<'idle' | 'ok' | 'fail'>('idle')
@@ -60,7 +76,7 @@ export default function MyPage() {
   const [photoUploading, setPhotoUploading] = useState(false)
 
   // 알림
-  const [notifs, setNotifs] = useState<(Notification & { fromNickname: string })[]>([])
+  const [notifs, setNotifs] = useState<(Notification & { fromNickname: string; fromPhotoThumb?: string | null })[]>([])
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifRefreshing, setNotifRefreshing] = useState(false)
   const [friendRefreshing, setFriendRefreshing] = useState(false)
@@ -73,8 +89,8 @@ export default function MyPage() {
   // 프로필 사진 확대
   const [showPhotoModal, setShowPhotoModal] = useState(false)
 
-  // 친구 사진 확대
-  const [friendPhotoUrl, setFriendPhotoUrl] = useState<string | null>(null)
+  // 친구 프로필 모달
+  const [friendProfileTarget, setFriendProfileTarget] = useState<{ uid: string; nickname: string; photoThumb?: string | null } | null>(null)
 
   // 컨펌 모달
   const [friendToRemove, setFriendToRemove] = useState<FriendWithProfile | null>(null)
@@ -92,9 +108,62 @@ export default function MyPage() {
   }, [user])
 
   useEffect(() => {
+    if (profile?.bio !== undefined) setBio(profile.bio ?? '')
+    if (profile) {
+      setPrivateBirthdate(profile.privateBirthdate ?? false)
+      setPrivatePhone(profile.privatePhone ?? false)
+    }
+  }, [profile])
+
+  useEffect(() => {
     if (tab === 'notifications') loadNotifications()
     if (tab === 'friends') loadFriends()
+    if (tab === 'profile' && user) loadStats()
   }, [tab])
+
+  async function loadStats() {
+    if (!user) return
+    try {
+      const [postCount, commentCount, withMeCount] = await Promise.all([
+        getMyPostCount(user.uid),
+        getMyCommentCount(user.uid),
+        getWithMePostCount(user.uid),
+      ])
+      setStats({ postCount, commentCount, withMeCount })
+    } catch (e){
+      console.error('loadStats error:', e)  // 추가
+    }
+  }
+
+  async function togglePrivacy(field: 'privateBirthdate' | 'privatePhone') {
+    if (!user) return
+    const next = field === 'privateBirthdate' ? !privateBirthdate : !privatePhone
+    if (field === 'privateBirthdate') setPrivateBirthdate(next)
+    else setPrivatePhone(next)
+    try {
+      await updatePrivacySettings(user.uid, { [field]: next })
+    } catch {
+      if (field === 'privateBirthdate') setPrivateBirthdate(!next)
+      else setPrivatePhone(!next)
+      showToast('설정 변경에 실패했어요', 'error')
+    }
+  }
+
+  async function handleBioSave() {
+    if (!user) return
+    if (bio === (profile?.bio ?? '')) { setEditingBio(false); return }
+    setBioSaving(true)
+    try {
+      await updateBio(user.uid, bio)
+      await refreshProfile()
+      setEditingBio(false)
+      showToast('한마디가 저장됐어요', 'success')
+    } catch {
+      showToast('저장에 실패했어요', 'error')
+    } finally {
+      setBioSaving(false)
+    }
+  }
 
   useFocusEffect(useCallback(() => {
     if (tab === 'notifications') loadNotifications()
@@ -115,7 +184,11 @@ export default function MyPage() {
     try {
       const ns = await getMyNotifications(user.uid)
       const profiles = await Promise.all(ns.map(n => getUserProfile(n.fromUid)))
-      const mapped = ns.map((n, i) => ({ ...n, fromNickname: profiles[i]?.nickname || '알 수 없음' }))
+      const mapped = ns.map((n, i) => ({
+        ...n,
+        fromNickname: profiles[i]?.nickname || '알 수 없음',
+        fromPhotoThumb: profiles[i]?.photoThumbUrl || profiles[i]?.photoUrl || null,
+      }))
       setNotifs(mapped)
       setUnreadCount(mapped.filter(n => !n.read).length)
       const friendReqs = ns.filter(n => n.type === 'friendRequest')
@@ -134,7 +207,7 @@ export default function MyPage() {
     try {
       const raw = await getMyFriends(user.uid)
       const profiles = await Promise.all(raw.map(f => getUserProfile(f.friendUid)))
-      setFriends(raw.map((f, i) => ({ ...f, nickname: profiles[i]?.nickname || '알 수 없음', email: profiles[i]?.email || '', photoUrl: profiles[i]?.photoUrl, photoThumbUrl: profiles[i]?.photoThumbUrl })))
+      setFriends(raw.map((f, i) => ({ ...f, nickname: profiles[i]?.nickname || '알 수 없음', email: profiles[i]?.email || '', photoUrl: profiles[i]?.photoUrl, photoThumbUrl: profiles[i]?.photoThumbUrl, birthdate: profiles[i]?.privateBirthdate ? null : (profiles[i]?.birthdate ?? null) })))
     } catch { showToast('친구 목록을 불러오지 못했어요', 'error') }
     finally { setFriendsLoading(false) }
   }
@@ -188,6 +261,11 @@ export default function MyPage() {
   }
 
   async function handlePickPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      showToast('사진 접근 권한이 필요해요. 설정에서 허용해 주세요', 'error')
+      return
+    }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 })
     if (result.canceled || !result.assets[0] || !user) return
     setPhotoUploading(true)
@@ -269,9 +347,9 @@ export default function MyPage() {
             {photoUploading
               ? <ActivityIndicator color={colors.primary} />
               : profile?.photoThumbUrl || profile?.photoUrl
-                ? <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.8}><Image source={{ uri: profile.photoThumbUrl || profile.photoUrl! }} style={s.avatarImg} /></TouchableOpacity>
+                ? <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.8}><Image source={{ uri: profile.photoThumbUrl || profile.photoUrl! }} style={s.avatarImg} cachePolicy="memory-disk" /></TouchableOpacity>
                 : <AppText style={s.avatarText}>{displayName[0]}</AppText>}
-            <View style={s.cameraBadge}><AppText style={{ fontSize: 10 }}>📷</AppText></View>
+            <View style={s.cameraBadge}><AppText style={{ fontSize: 16, lineHeight: 20 }}>📷</AppText></View>
           </View>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -284,11 +362,11 @@ export default function MyPage() {
       </View>
 
       {/* 탭 */}
-      <View style={s.tabBar}>
+      <View style={cs.tabBar}>
         {(['profile', 'notifications', 'friends'] as Tab[]).map(t => (
-          <TouchableOpacity key={t} style={[s.tabBtn, tab === t && s.tabBtnActive]} onPress={() => setTab(t)}>
+          <TouchableOpacity key={t} style={[cs.tabBtn, tab === t && cs.tabBtnActive]} onPress={() => setTab(t)}>
             <View style={s.tabBtnInner}>
-              <AppText style={[s.tabBtnText, tab === t && s.tabBtnTextActive]}>
+              <AppText style={[cs.tabBtnText, tab === t && cs.tabBtnTextActive]}>
                 {t === 'profile' ? '프로필' : t === 'notifications' ? '알림함' : '친구관리'}
               </AppText>
               {t === 'notifications' && unreadCount > 0 && (
@@ -324,16 +402,80 @@ export default function MyPage() {
           <View style={s.section}>
             {/* 기본 정보 */}
             <AppText style={cs.sectionTitle}>기본 정보</AppText>
-            {[
-              { label: '이메일', value: profile?.email || user?.email || '-' },
-              { label: '생년월일', value: profile?.birthdate?.replace(/-/g, '.') || '-' },
-              { label: '휴대폰', value: profile?.phone || '-' },
-            ].map(row => (
-              <View key={row.label} style={s.infoRow}>
-                <AppText style={s.infoLabel}>{row.label}</AppText>
-                <AppText style={s.infoValue}>{row.value}</AppText>
+            <View style={s.infoRow}>
+              <AppText style={s.infoLabel}>이메일</AppText>
+              <AppText style={s.infoValue}>{profile?.email || user?.email || '-'}</AppText>
+            </View>
+            <View style={s.infoRow}>
+              <AppText style={s.infoLabel}>생년월일</AppText>
+              <View style={s.infoValueRow}>
+                <AppText style={[s.infoValue, privateBirthdate && { color: colors.gray400 }]}>
+                  {privateBirthdate ? '비공개' : (profile?.birthdate?.replace(/-/g, '.') || '-')}
+                </AppText>
+                <TouchableOpacity onPress={() => togglePrivacy('privateBirthdate')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name={privateBirthdate ? 'lock-closed' : 'lock-open-outline'} size={16} color={privateBirthdate ? colors.primary : colors.gray400} />
+                </TouchableOpacity>
               </View>
-            ))}
+            </View>
+            <View style={s.infoRow}>
+              <AppText style={s.infoLabel}>연락처</AppText>
+              <View style={s.infoValueRow}>
+                <AppText style={[s.infoValue, privatePhone && { color: colors.gray400 }]}>
+                  {privatePhone ? '비공개' : (formatPhone(profile?.phone) || '-')}
+                </AppText>
+                <TouchableOpacity onPress={() => togglePrivacy('privatePhone')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name={privatePhone ? 'lock-closed' : 'lock-open-outline'} size={16} color={privatePhone ? colors.primary : colors.gray400} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* 나의 한마디 */}
+            <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>나의 한마디</AppText>
+            <View style={s.bioRow}>
+              {editingBio ? (
+                <TextInput
+                  style={s.bioInput}
+                  value={bio}
+                  onChangeText={setBio}
+                  placeholder="한 줄로 나를 소개해 보세요"
+                  placeholderTextColor={colors.gray500}
+                  maxLength={40}
+                  autoFocus
+                  onBlur={() => {
+                    bioBlurTimer.current = setTimeout(() => { handleBioSave() }, 200)
+                  }}
+                />
+              ) : (
+                <AppText
+                  style={[s.bioText, { color: bio ? colors.text : colors.gray500 }]}
+                  numberOfLines={1}
+                  onPress={() => setEditingBio(true)}
+                >
+                  {bio || '한 줄로 나를 소개해 보세요'}
+                </AppText>
+              )}
+              {!editingBio && (
+                <TouchableOpacity onPress={() => setEditingBio(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {/* 나의 활동 */}
+            <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>나의 활동</AppText>
+            <View style={s.statsRow}>
+              {[
+                { label: '모은 조각', value: stats?.postCount },
+                { label: '남긴 댓글', value: stats?.commentCount },
+                { label: '함께한 조각', value: stats?.withMeCount },
+              ].map(item => (
+                <View key={item.label} style={[s.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  {item.value == null
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <AppText style={[s.statValue, { color: colors.primary }]}>{item.value}</AppText>}
+                  <AppText style={[s.statLabel, { color: colors.textMuted }]}>{item.label}</AppText>
+                </View>
+              ))}
+            </View>
 
             {/* 닉네임 변경 */}
             <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>닉네임 변경</AppText>
@@ -405,11 +547,17 @@ export default function MyPage() {
                     : n.type === 'friendAccepted' ? `${n.fromNickname}님이 친구 요청을 수락했어요`
                     : n.type === 'comment' ? `${n.fromNickname}님이 내 조각에 댓글을 달았어요`
                     : n.type === 'mention' ? `${n.fromNickname}님이 댓글에서 나를 언급했어요`
+                    : n.type === 'with' ? `${n.fromNickname}님이 당신과 함께한 하루를 남겼어요`
+                    : n.type === 'message' ? `${n.fromNickname}님이 '${n.message}' 메세지를 보냈어요`
                     : `${n.fromNickname}님이 내 조각에 공감을 남겼어요`
-                  const hasPost = !!n.postId && (n.type === 'comment' || n.type === 'reaction' || n.type === 'mention')
+                  const hasPost = !!n.postId && (n.type === 'comment' || n.type === 'reaction' || n.type === 'mention' || n.type === 'with')
                   function handleNotifPress() {
                     if (!n.read) markNotificationRead(n.id)
-                    router.push({ pathname: '/(tabs)/main', params: { highlightPostId: n.postId } })
+                    if (n.type === 'with') {
+                      router.push({ pathname: '/(tabs)/friends', params: { highlightPostId: n.postId } })
+                    } else {
+                      router.push({ pathname: '/(tabs)/main', params: { highlightPostId: n.postId } })
+                    }
                   }
                   return (
                     <TouchableOpacity
@@ -419,12 +567,16 @@ export default function MyPage() {
                       activeOpacity={hasPost ? 0.7 : 1}
                     >
                       <View style={s.notifAvatar}>
-                        <AppText style={s.notifAvatarText}>{n.fromNickname[0]}</AppText>
+                        {n.fromPhotoThumb
+                          ? <Image source={{ uri: n.fromPhotoThumb }} style={s.notifAvatarImg} cachePolicy="memory-disk" />
+                          : <AppText style={s.notifAvatarText}>{n.fromNickname[0]}</AppText>}
                       </View>
                       <View style={{ flex: 1 }}>
                         <AppText style={s.notifBody}>{body}</AppText>
                         <AppText style={s.notifTime}>{timeText}</AppText>
-                        {n.type === 'friendRequest' && n.friendshipId && pendingFriendshipIds.has(n.friendshipId) && (
+                      </View>
+                      <View style={s.notifRight}>
+                        {n.type === 'friendRequest' && n.friendshipId && pendingFriendshipIds.has(n.friendshipId) ? (
                           <View style={s.notifActions}>
                             <TouchableOpacity style={s.acceptBtn} onPress={() => handleAccept(n.friendshipId!, n.fromUid)}>
                               <AppText style={s.acceptBtnText}>수락</AppText>
@@ -433,13 +585,13 @@ export default function MyPage() {
                               <AppText style={s.rejectBtnText}>거절</AppText>
                             </TouchableOpacity>
                           </View>
-                        )}
-                        {n.type === 'friendRequest' && n.friendshipId && !pendingFriendshipIds.has(n.friendshipId) && (
-                          <AppText style={s.processedBadge}>처리 완료</AppText>
-                        )}
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        {hasPost && <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />}
+                        ) : n.type === 'friendRequest' && n.friendshipId && !pendingFriendshipIds.has(n.friendshipId) ? (
+                          <View style={s.processedBadge}>
+                            <AppText style={s.processedBadgeText}>처리완료</AppText>
+                          </View>
+                        ) : hasPost ? (
+                          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                        ) : null}
                         {!n.read && <View style={s.unreadDot} />}
                       </View>
                     </TouchableOpacity>
@@ -471,15 +623,18 @@ export default function MyPage() {
             ) : (
               friends.map(f => (
                 <View key={f.friendUid} style={s.friendRow}>
-                  <TouchableOpacity
-                    style={s.friendAvatar}
-                    onPress={() => (f.photoUrl || f.photoThumbUrl) && setFriendPhotoUrl(f.photoUrl || f.photoThumbUrl!)}
-                    activeOpacity={(f.photoUrl || f.photoThumbUrl) ? 0.75 : 1}
-                  >
-                    {f.photoThumbUrl || f.photoUrl
-                      ? <Image source={{ uri: f.photoThumbUrl || f.photoUrl! }} style={s.friendAvatarImg} />
-                      : <AppText style={s.friendAvatarText}>{f.nickname[0]}</AppText>}
-                  </TouchableOpacity>
+                  <View style={{ position: 'relative' }}>
+                    <TouchableOpacity
+                      style={[s.friendAvatar, isBirthday(f.birthdate) && s.birthdayAvatar]}
+                      onPress={() => setFriendProfileTarget({ uid: f.friendUid, nickname: f.nickname, photoThumb: f.photoThumbUrl || f.photoUrl })}
+                      activeOpacity={0.75}
+                    >
+                      {f.photoThumbUrl || f.photoUrl
+                        ? <Image source={{ uri: f.photoThumbUrl || f.photoUrl! }} style={s.friendAvatarImg} cachePolicy="memory-disk" />
+                        : <AppText style={s.friendAvatarText}>{f.nickname[0]}</AppText>}
+                    </TouchableOpacity>
+                    {isBirthday(f.birthdate) && <AppText style={s.birthdayBadge}>🎂</AppText>}
+                  </View>
                   <View style={{ flex: 1 }}>
                     <AppText style={s.friendName}>{f.nickname}</AppText>
                     <AppText style={s.friendEmail}>{f.email}</AppText>
@@ -498,17 +653,22 @@ export default function MyPage() {
       <Modal visible={showPhotoModal} transparent animationType="fade" onRequestClose={() => setShowPhotoModal(false)}>
         <Pressable style={s.photoOverlay} onPress={() => setShowPhotoModal(false)}>
           {(profile?.photoUrl) && (
-            <Image source={{ uri: profile.photoUrl }} style={s.photoLarge} resizeMode="contain" />
+            <Image source={{ uri: profile.photoUrl }} style={s.photoLarge} contentFit="contain" cachePolicy="memory-disk" />
           )}
         </Pressable>
       </Modal>
 
-      {/* 친구 프로필 사진 확대 */}
-      <Modal visible={!!friendPhotoUrl} transparent animationType="fade" onRequestClose={() => setFriendPhotoUrl(null)}>
-        <Pressable style={s.photoOverlay} onPress={() => setFriendPhotoUrl(null)}>
-          {friendPhotoUrl && <Image source={{ uri: friendPhotoUrl }} style={s.photoLarge} resizeMode="contain" />}
-        </Pressable>
-      </Modal>
+      {/* 친구 프로필 모달 */}
+      {user && (
+        <ProfileModal
+          visible={!!friendProfileTarget}
+          uid={friendProfileTarget?.uid ?? ''}
+          currentUserUid={user.uid}
+          nickname={friendProfileTarget?.nickname ?? ''}
+          photoThumb={friendProfileTarget?.photoThumb}
+          onClose={() => setFriendProfileTarget(null)}
+        />
+      )}
 
       {/* 친구 정리 확인 모달 */}
       {friendToRemove && (
@@ -562,24 +722,38 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center', overflow: 'visible' },
     avatarImg: { width: 56, height: 56, borderRadius: 28 },
     avatarText: { fontSize: 22, fontWeight: '700', color: colors.primary },
-    cameraBadge: { position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
-    displayName: { fontSize: 16, fontWeight: '700', color: colors.text },
-    email: { fontSize: 14, color: colors.textMuted, marginTop: 8 },
+    cameraBadge: { position: 'absolute', bottom: -4, right: -4, width: 26, height: 26, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+    displayName: { fontSize: 16, fontWeight: '700', color: colors.text, lineHeight: 20 },
+    email: { fontSize: 14, color: colors.textMuted, marginTop: 8, lineHeight: 18 },
     logoutBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
     logoutText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
-    tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-    tabBtn: { flex: 1, height: 44, justifyContent: 'center', alignItems: 'center', paddingVertical: 11 },
     tabBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     tabBadge: { backgroundColor: colors.primary, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
     tabBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-    tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary, fontWeight: '600' },
-    tabBtnText: { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
-    tabBtnTextActive: { color: colors.primary, fontWeight: '700' },
     body: { padding: 20, paddingBottom: 30 },
     section: { gap: 10 },
-    infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+    bioRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+      borderRadius: 10, paddingHorizontal: 14, height: 46,
+    },
+    bioText: { flex: 1, fontSize: 14, lineHeight: 20 },
+    bioInput: {
+      flex: 1, alignSelf: 'stretch', fontSize: 14, color: colors.text,
+      fontFamily: 'GmarketSansMedium',
+      padding: 0, textAlignVertical: 'center', includeFontPadding: false,
+    },
+    statsRow: { flexDirection: 'row', gap: 12 },
+    statCard: {
+      flex: 1, alignItems: 'center', paddingVertical: 16,
+      borderRadius: 12, borderWidth: 1, gap: 6,
+    },
+    statValue: { fontSize: 22, fontWeight: '700' },
+    statLabel: { fontSize: 13 },
+    infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
     infoLabel: { fontSize: 15, color: colors.textMuted },
-    infoValue: { fontSize: 14, fontWeight: '500', color: colors.text },
+    infoValue: { fontSize: 14, fontWeight: '500', color: colors.text, lineHeight: 18 },
+    infoValueRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     checkBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center', minWidth: 72 },
     checkBtnOk: { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
     checkBtnText: { fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'center' },
@@ -592,26 +766,31 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
       paddingHorizontal: 22, paddingVertical: 12, marginBottom: 16,
     },
     findFriendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    markAllBtn: { alignSelf: 'flex-end', marginBottom: 4, marginTop: 8 },
+    markAllBtn: { alignSelf: 'flex-end', marginBottom: 4, marginTop: 8, borderRadius: 6, borderColor: colors.gray400, borderWidth: 1, padding: 5, justifyContent: 'center' },
     markAllText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
     notifItem: { flexDirection: 'row', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    notifAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+    notifAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center', flexShrink: 0, overflow: 'hidden' },
     notifAvatarText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+    notifAvatarImg: { width: 36, height: 36, borderRadius: 18 },
     notifBody: { fontSize: 15, color: colors.text, lineHeight: 18 },
     notifTime: { fontSize: 13, color: colors.textMuted, marginTop: 5 },
-    notifActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    acceptBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
-    acceptBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    rejectBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
-    rejectBtnText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-    processedBadge: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, alignSelf: 'flex-start', marginTop: 4 },
+    notifRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 6, flexShrink: 0 },
+    notifActions: { gap: 6 },
+    acceptBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5, alignItems: 'center' },
+    acceptBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    rejectBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5, alignItems: 'center' },
+    rejectBtnText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    processedBadge: { backgroundColor: colors.gray200, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+    processedBadgeText: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
+    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
     friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
     friendAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    birthdayAvatar: { borderWidth: 2, borderColor: '#F59E0B' },
+    birthdayBadge: { position: 'absolute', bottom: -4, right: -4, fontSize: 14 },
     friendAvatarImg: { width: 40, height: 40, borderRadius: 20 },
     friendAvatarText: { fontSize: 16, fontWeight: '700', color: colors.primary },
     friendName: { fontSize: 15, fontWeight: '700', color: colors.text },
-    friendEmail: { fontSize: 13, color: colors.textMuted, paddingTop: 5 },
+    friendEmail: { fontSize: 13, color: colors.textMuted, paddingTop: 5, lineHeight: 17 },
     removeBtn: { borderWidth: 1, borderColor: colors.danger, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
     removeBtnText: { fontSize: 14, color: colors.danger, fontWeight: '600' },
     photoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },

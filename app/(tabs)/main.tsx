@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useAuth } from '../../src/context/AuthContext'
 import { useTheme } from '../../src/context/ThemeContext'
-import { getMyPostsPaged, getMyPostsByDate } from '../../src/services/postService'
+import { getMyPostsPaged, getMyPostsByDate, getMyPosts } from '../../src/services/postService'
 import type { Post } from '../../src/services/postService'
 import type { DocumentSnapshot } from 'firebase/firestore'
 import { getMyNotifications } from '../../src/services/friendService'
@@ -17,6 +17,7 @@ import { toKoreanDate, today } from '../../src/utils/formatDate'
 import PostCard from '../../src/components/PostCard'
 import CalendarView from '../../src/components/CalendarView'
 import { SkeletonPostCard } from '../../src/components/Skeleton'
+import { makeCommonStyles } from '../../src/theme/commonStyles'
 
 type ViewMode = 'feed' | 'calendar'
 
@@ -27,6 +28,9 @@ export default function MainPage() {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('feed')
   const flatListRef = useRef<FlatList<Post>>(null)
+  const handledHighlightRef = useRef<string | null>(null)
+  const viewModeRef = useRef<ViewMode>('feed')
+  const calSelectedRef = useRef<string | null>(null)
 
   // 피드
   const [posts, setPosts] = useState<Post[]>([])
@@ -40,7 +44,16 @@ export default function MainPage() {
   const [calSelected, setCalSelected] = useState<string | null>(null)
   const [calPosts, setCalPosts] = useState<Post[]>([])
   const [calLoading, setCalLoading] = useState(false)
+  const [calPostDates, setCalPostDates] = useState<Set<string>>(new Set())
   const [unreadCount, setUnreadCount] = useState(0)
+
+  async function loadCalPostDates() {
+    if (!user) return
+    try {
+      const posts = await getMyPosts(user.uid)
+      setCalPostDates(new Set(posts.map(p => p.recordDate)))
+    } catch {}
+  }
 
   async function loadFeed(refresh = false, silent = false) {
     if (!user) return
@@ -60,6 +73,9 @@ export default function MainPage() {
     }
   }
 
+  useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
+  useEffect(() => { calSelectedRef.current = calSelected }, [calSelected])
+
   useEffect(() => {
     loadFeed(true)
   }, [user])
@@ -67,11 +83,22 @@ export default function MainPage() {
   useFocusEffect(useCallback(() => {
     if (!user) return
     getMyNotifications(user.uid).then(ns => setUnreadCount(ns.filter(n => !n.read).length)).catch(() => {})
-    loadFeed(true, true)  // 스켈레톤 없이 조용히 갱신
+    loadFeed(true, true)
+    loadCalPostDates()
+    if (viewModeRef.current === 'calendar' && calSelectedRef.current) {
+      const dateStr = calSelectedRef.current
+      setCalLoading(true)
+      getMyPostsByDate(user.uid, dateStr)
+        .then(data => setCalPosts(data))
+        .catch(() => setCalPosts([]))
+        .finally(() => setCalLoading(false))
+    }
   }, [user]))
 
   useEffect(() => {
     if (!highlightPostId || posts.length === 0) return
+    if (handledHighlightRef.current === highlightPostId) return
+    handledHighlightRef.current = highlightPostId
     setViewMode('feed')
     setActiveHighlight(highlightPostId)
     const idx = posts.findIndex(p => p.id === highlightPostId)
@@ -80,9 +107,14 @@ export default function MainPage() {
         flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 })
       }, 300)
     }
-    const clear = setTimeout(() => setActiveHighlight(null), 5000)
-    return () => clearTimeout(clear)
   }, [highlightPostId, posts])
+
+  // 하이라이트 자동 해제 — posts 변경과 분리해야 타이머가 취소되지 않음
+  useEffect(() => {
+    if (!activeHighlight) return
+    const timer = setTimeout(() => setActiveHighlight(null), 5000)
+    return () => clearTimeout(timer)
+  }, [activeHighlight])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -115,6 +147,7 @@ export default function MainPage() {
   }
 
   const s = makeStyles(colors)
+  const cs = makeCommonStyles(colors)
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -130,10 +163,10 @@ export default function MainPage() {
         </TouchableOpacity>
       </View>
 
-      <View style={s.tabBar}>
+      <View style={cs.tabBar}>
         {(['feed', 'calendar'] as ViewMode[]).map(mode => (
-          <TouchableOpacity key={mode} style={[s.tabBtn, viewMode === mode && s.tabBtnActive]} onPress={() => setViewMode(mode)}>
-            <AppText style={[s.tabBtnText, viewMode === mode && s.tabBtnTextActive]}>
+          <TouchableOpacity key={mode} style={[cs.tabBtn, viewMode === mode && cs.tabBtnActive]} onPress={() => setViewMode(mode)}>
+            <AppText style={[cs.tabBtnText, viewMode === mode && cs.tabBtnTextActive]}>
               {mode === 'feed' ? '최근 하루' : '달력 보기'}
             </AppText>
           </TouchableOpacity>
@@ -180,9 +213,9 @@ export default function MainPage() {
           contentContainerStyle={s.list}
           ListHeaderComponent={
             <CalendarView
-              uid={user?.uid}
               onSelectDate={handleCalDateSelect}
               selectedDate={calSelected}
+              postDates={calPostDates}
             />
           }
           ListEmptyComponent={
@@ -202,7 +235,14 @@ export default function MainPage() {
         />
       )}
 
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/write-modal')} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={s.fab}
+        onPress={() => router.push({
+          pathname: '/write-modal',
+          params: viewMode === 'calendar' && calSelected ? { date: calSelected } : {},
+        })}
+        activeOpacity={0.85}
+      >
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
@@ -233,11 +273,6 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
       shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6,
       elevation: 6,
     },
-    tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-    tabBtn: { flex: 1, height: 44, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' },
-    tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-    tabBtnText: { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
-    tabBtnTextActive: { color: colors.primary, fontWeight: '700' },
     list: { padding: 16, gap: 12 },
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, gap: 20 },
     emptyText: { color: colors.textMuted, fontSize: 16 },

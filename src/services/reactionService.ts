@@ -13,9 +13,9 @@ export type ReactionType = 'heart' | 'funny' | 'sad' | 'surprised' | 'cheer'
 
 export const REACTION_LIST: { type: ReactionType; emoji: string; label: string }[] = [
   { type: 'heart',     emoji: '❤️',  label: '좋아요'  },
-  { type: 'funny',     emoji: '😄',  label: '재밌어요' },
+  { type: 'funny',     emoji: '😆',  label: '재밌어요' },
   { type: 'sad',       emoji: '😢',  label: '슬퍼요'  },
-  { type: 'surprised', emoji: '😮',  label: '놀라워요' },
+  { type: 'surprised', emoji: '😮',  label: '놀랐어요' },
   { type: 'cheer',     emoji: '👏',  label: '축하해요' },
 ]
 

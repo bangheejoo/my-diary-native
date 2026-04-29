@@ -2,6 +2,7 @@ import { auth, db } from './firebase'
 import {
   collection,
   doc,
+  addDoc,
   updateDoc,
   deleteDoc,
   getDoc,
@@ -25,10 +26,11 @@ export interface Notification {
   id: string
   toUid: string
   fromUid: string
-  type: 'friendRequest' | 'friendAccepted' | 'comment' | 'reaction' | 'mention'
+  type: 'friendRequest' | 'friendAccepted' | 'comment' | 'reaction' | 'mention' | 'with' | 'message'
   friendshipId?: string
   postId?: string
   reactionType?: string
+  message?: string
   read: boolean
   createdAt?: unknown
 }
@@ -136,6 +138,27 @@ export async function getMyFriends(uid: string): Promise<Friendship[]> {
   })
 }
 
+export async function sendWithNotifications(
+  postId: string,
+  fromUid: string,
+  toUids: string[]
+): Promise<void> {
+  if (!toUids.length) return
+  const batch = writeBatch(db)
+  for (const toUid of toUids) {
+    const notifRef = doc(collection(db, 'notifications'))
+    batch.set(notifRef, {
+      toUid,
+      fromUid,
+      type: 'with',
+      postId,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
+  }
+  await batch.commit()
+}
+
 export async function getMyNotifications(uid: string): Promise<Notification[]> {
   const q = query(collection(db, 'notifications'), where('toUid', '==', uid))
   const snap = await getDocs(q)
@@ -170,4 +193,15 @@ export async function getFriendshipStatus(uid1: string, uid2: string) {
   const snap = await getDoc(doc(db, 'friendships', fid))
   if (!snap.exists()) return null
   return { id: snap.id, ...snap.data() }
+}
+
+export async function sendMessage(fromUid: string, toUid: string, message: string) {
+  await addDoc(collection(db, 'notifications'), {
+    toUid,
+    fromUid,
+    type: 'message',
+    message: message.trim(),
+    read: false,
+    createdAt: serverTimestamp(),
+  })
 }

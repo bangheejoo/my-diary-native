@@ -1,0 +1,174 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── 공통 헬퍼 ──────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // 두 uid가 친구 관계(accepted)인지 확인
+    function isFriend(uid1, uid2) {
+      let fid = uid1 < uid2 ? uid1 + '_' + uid2 : uid2 + '_' + uid1;
+      return exists(/databases/$(database)/documents/friendships/$(fid)) &&
+             get(/databases/$(database)/documents/friendships/$(fid)).data.status == 'accepted';
+    }
+
+    // ── nicknames (공개 읽기 - 비로그인 중복체크용) ────────────────
+    match /nicknames/{nickname} {
+      allow read: if true;  // 누구나 읽기 가능 (닉네임만 저장)
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ── users ───────────────────────────────────────────────────
+    match /users/{uid} {
+      // 본인만 생성/수정
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isSignedIn() && isOwner(uid);
+
+      // 로그인한 사용자 모두 읽기 가능 (닉네임/이메일 검색용)
+      allow read: if isSignedIn();
+
+      // 삭제: 본인만 (계정 삭제 시)
+      allow delete: if isSignedIn() && isOwner(uid);
+    }
+
+    // ── posts ───────────────────────────────────────────────────
+    match /posts/{postId} {
+      // 작성: 로그인한 본인
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.visibility in ['private', 'friends', 'us']
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.recordDate is string;
+
+      // 수정/삭제: 본인만
+      allow update, delete: if isSignedIn() && isOwner(resource.data.uid);
+
+      // 개별 문서 읽기:
+      //   - 본인 기록은 항상 가능
+      //   - 친구랑보기: 친구만 가능
+      //   - 우리만보기: targetUid 본인이고 친구인 경우만 가능
+      allow read: if isSignedIn() && (
+        isOwner(resource.data.uid) ||
+        (resource.data.visibility == 'friends' && isFriend(request.auth.uid, resource.data.uid)) ||
+        (resource.data.visibility == 'us' && resource.data.targetUid == request.auth.uid)
+      );
+
+      // 목록/집계 쿼리: 본인 게시글 카운트용 (getCountFromServer는 get() 불가)
+      allow list: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        ('withUids' in resource.data && request.auth.uid in resource.data.withUids)
+      );
+    }
+
+    // ── reactions (posts/{postId}/reactions/{uid}) ──────────────
+    match /posts/{postId}/reactions/{uid} {
+      function parentPost() {
+        return get(/databases/$(database)/documents/posts/$(postId));
+      }
+      function canAccessPost() {
+        return isOwner(parentPost().data.uid) ||
+               (parentPost().data.visibility == 'friends' && isFriend(request.auth.uid, parentPost().data.uid)) ||
+               (parentPost().data.visibility == 'us' && parentPost().data.targetUid == request.auth.uid && isFriend(request.auth.uid, parentPost().data.uid));
+      }
+
+      // 읽기: 게시글에 접근 가능한 사용자
+      allow read: if isSignedIn() && canAccessPost();
+
+      // 작성/수정: 본인 문서(uid)에만, 유효한 type, 게시글 접근 권한
+      allow create, update: if isSignedIn()
+        && isOwner(uid)
+        && canAccessPost()
+        && request.resource.data.type in ['heart', 'funny', 'sad', 'surprised', 'cheer'];
+
+      // 삭제: 반응 작성자 본인 또는 게시글 작성자 (계정 삭제 시 포스트 오너가 서브컬렉션 정리)
+      allow delete: if isSignedIn() && (isOwner(uid) || isOwner(parentPost().data.uid));
+    }
+
+    // ── comments ────────────────────────────────────────────────
+    match /comments/{commentId} {
+      // 게시글 문서 조회 헬퍼
+      function commentPost() {
+        return get(/databases/$(database)/documents/posts/$(resource.data.postId));
+      }
+      function commentPostForCreate() {
+        return get(/databases/$(database)/documents/posts/$(request.resource.data.postId));
+      }
+
+      // 개별 문서 읽기: 게시글 작성자 본인 또는 게시글 작성자의 친구
+      allow read: if isSignedIn() && (
+        isOwner(commentPost().data.uid) ||
+        isFriend(request.auth.uid, commentPost().data.uid)
+      );
+
+      // 목록/집계 쿼리: 본인 댓글 카운트용 (getCountFromServer는 get() 불가)
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+
+      // 작성: 게시글 작성자 본인 또는 게시글 작성자의 친구
+      //        작성자 uid 일치, 내용 필수, postId 필수
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.postId is string
+        && (
+          isOwner(commentPostForCreate().data.uid) ||
+          isFriend(request.auth.uid, commentPostForCreate().data.uid)
+        );
+
+      // 삭제: 댓글 작성자 본인 또는 게시글 작성자 본인
+      allow delete: if isSignedIn() && (
+        isOwner(resource.data.uid) ||
+        isOwner(commentPost().data.uid)
+      );
+
+      // 수정 불가
+      allow update: if false;
+    }
+
+    // ── friendships ─────────────────────────────────────────────
+    match /friendships/{friendshipId} {
+      // 생성: 로그인 + 본인이 requester
+      allow create: if isSignedIn()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.receiverId != request.auth.uid
+        && request.auth.uid in request.resource.data.users
+        && request.resource.data.status == 'pending';
+
+      // 수정: 관계 당사자만 (수락/거절)
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.users;
+
+      // 삭제: 관계 당사자 중 한 명
+      allow delete: if isSignedIn()
+        && request.auth.uid in resource.data.users;
+
+      // 읽기: 관계 당사자 또는 로그인한 사용자 (친구 상태 확인용)
+      allow read: if isSignedIn();
+    }
+
+    // ── notifications ───────────────────────────────────────────
+    match /notifications/{notifId} {
+      // 생성: 로그인한 사용자 (friendService 에서 자동 생성)
+      allow create: if isSignedIn();
+
+      // 읽기: 수신자 본인 또는 발신자 본인 (계정 삭제 시 발신 알림 조회)
+      allow read: if isSignedIn() && (isOwner(resource.data.toUid) || isOwner(resource.data.fromUid));
+
+      // 수정(읽음 처리): 수신자 본인만, read 필드만 변경 허용
+      allow update: if isSignedIn()
+        && isOwner(resource.data.toUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // 삭제: 수신자 또는 발신자 본인 (계정 삭제 시)
+      allow delete: if isSignedIn() && (isOwner(resource.data.toUid) || isOwner(resource.data.fromUid));
+    }
+  }
+}

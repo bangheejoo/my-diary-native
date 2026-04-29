@@ -43,6 +43,9 @@ export interface UserProfile {
   nickname: string
   phone: string
   birthdate: string
+  bio?: string
+  privateBirthdate?: boolean
+  privatePhone?: boolean
   photoUrl?: string | null
   photoThumbUrl?: string | null
   notifSettings?: NotifSettings
@@ -142,6 +145,14 @@ export async function updateProfilePhoto(uid: string, photoUrl: string, photoThu
   await updateDoc(doc(db, 'users', uid), { photoUrl, ...(photoThumbUrl ? { photoThumbUrl } : {}) })
 }
 
+export async function updateBio(uid: string, bio: string): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), { bio: bio.trim() })
+}
+
+export async function updatePrivacySettings(uid: string, settings: { privateBirthdate?: boolean; privatePhone?: boolean }): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), settings)
+}
+
 async function safeDeleteStorageObject(path: string) {
   try { await deleteObject(ref(storage, path)) } catch { /* 없으면 무시 */ }
 }
@@ -211,26 +222,18 @@ export async function deleteAccount(password: string): Promise<void> {
 
 export async function searchUser(keyword: string): Promise<UserProfile[]> {
   if (!keyword.trim()) return []
-  const end = keyword + '\uf8ff'
-  const map = new Map<string, UserProfile>()
+  const q = keyword.toLowerCase()
 
-  const [emailSnap, nickSnap] = await Promise.all([
-    getDocs(query(
-      collection(db, 'users'),
-      where('email', '>=', keyword),
-      where('email', '<=', end),
-      limit(20),
-    )),
-    getDocs(query(
-      collection(db, 'users'),
-      where('nickname', '>=', keyword),
-      where('nickname', '<=', end),
-      limit(20),
-    )),
-  ])
-
-  emailSnap.forEach(d => map.set(d.id, { uid: d.id, ...d.data() } as UserProfile))
-  nickSnap.forEach(d => { if (!map.has(d.id)) map.set(d.id, { uid: d.id, ...d.data() } as UserProfile) })
-
-  return [...map.values()]
+  const snap = await getDocs(query(collection(db, 'users'), limit(300)))
+  const results: UserProfile[] = []
+  snap.forEach(d => {
+    const data = d.data()
+    if (
+      (data.email as string || '').toLowerCase().includes(q) ||
+      (data.nickname as string || '').toLowerCase().includes(q)
+    ) {
+      results.push({ uid: d.id, ...data } as UserProfile)
+    }
+  })
+  return results
 }

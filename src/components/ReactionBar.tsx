@@ -101,7 +101,7 @@ export default function ReactionBar({ postId, currentUserUid, postOwnerUid }: Pr
       <Modal visible={showPicker} transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
         <Pressable style={s.overlay} onPress={() => setShowPicker(false)}>
           <Pressable style={s.picker} onPress={e => e.stopPropagation()}>
-            <AppText style={s.pickerTitle}>친구에게 공감을 보내요</AppText>
+            <AppText style={s.pickerTitle}>친구에게 마음을 보내요</AppText>
             <View style={s.emojiRow}>
               {REACTION_LIST.map(r => (
                 <TouchableOpacity
@@ -163,7 +163,7 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
     summary: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, flex: 1 },
     reactionChip: {
       flexDirection: 'row', alignItems: 'center', gap: 3,
-      backgroundColor: colors.gray100, borderRadius: 20,
+      backgroundColor: colors.gray200, borderRadius: 20,
       paddingHorizontal: 8, paddingVertical: 3,
       borderWidth: 1, borderColor: colors.border,
     },
@@ -187,7 +187,7 @@ function makeStyles(colors: ReturnType<typeof import('../theme/colors').getTheme
     pickerTitle: { fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center' },
     emojiRow: { flexDirection: 'row', justifyContent: 'space-around' },
     emojiBtn: {
-      alignItems: 'center', gap: 4, padding: 8, borderRadius: 10,
+      alignItems: 'center', gap: 1, padding: 10, borderRadius: 10,
       borderWidth: 1.5, borderColor: 'transparent',
     },
     emojiBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight2 },

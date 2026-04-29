@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import {
   View, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, ScrollView,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform, type ListRenderItem,
 } from 'react-native'
+import { Image } from 'expo-image'
 import AppText from '../../src/components/AppText'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuth } from '../../src/context/AuthContext'
 import { useTheme } from '../../src/context/ThemeContext'
 import { useToast } from '../../src/context/ToastContext'
@@ -27,14 +29,23 @@ interface FriendWithProfile extends Friendship {
   nickname: string
   photoUrl?: string | null
   photoThumbUrl?: string | null
+  birthdate?: string | null
 }
 
 type ViewMode = 'feed' | 'calendar'
+
+const TUTORIAL_TIPS = [
+  { icon: 'people-outline',      label: '친구',   desc: '친구들의 하루 조각이 이곳에 모여요' },
+  { icon: 'heart-outline',       label: '공감',   desc: '마음을 가볍게 전해 보세요' },
+  { icon: 'chatbubble-outline',  label: '댓글',   desc: '따뜻한 한마디를 남겨 보세요' },
+]
 
 export default function FriendsPage() {
   const { user } = useAuth()
   const { colors } = useTheme()
   const { showToast } = useToast()
+  const insets = useSafeAreaInsets()
+  const [showTutorial, setShowTutorial] = useState(false)
 
   const [viewMode, setViewMode] = useState<ViewMode>('feed')
   const [friends, setFriends] = useState<FriendWithProfile[]>([])
@@ -57,8 +68,12 @@ export default function FriendsPage() {
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
 
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(null)
+  const flatListRef = useRef<FlatList<Post>>(null)
+  const handledHighlightRef = useRef<string | null>(null)
+
   const friendUids = friends.map(f => f.friendUid)
-  const { openAdd } = useLocalSearchParams<{ openAdd?: string }>()
+  const { openAdd, highlightPostId } = useLocalSearchParams<{ openAdd?: string; highlightPostId?: string }>()
 
   useEffect(() => { loadFriends() }, [user])
 
@@ -67,21 +82,54 @@ export default function FriendsPage() {
   }, [openAdd])
 
   useEffect(() => {
+    if (!highlightPostId || feedPosts.length === 0) return
+    if (handledHighlightRef.current === highlightPostId) return
+    handledHighlightRef.current = highlightPostId
+    setViewMode('feed')
+    setActiveHighlight(highlightPostId)
+    const idx = feedPosts.findIndex(p => p.id === highlightPostId)
+    if (idx >= 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 })
+      }, 300)
+    }
+  }, [highlightPostId, feedPosts])
+
+  useEffect(() => {
+    if (!activeHighlight) return
+    const timer = setTimeout(() => setActiveHighlight(null), 5000)
+    return () => clearTimeout(timer)
+  }, [activeHighlight])
+
+  useEffect(() => {
     if (viewMode === 'feed') loadFeed()
     else loadCalendarDates()
   }, [viewMode, selectedUid, friends])
+
+  function closeTutorial() {
+    setShowTutorial(false)
+  }
+
+  async function neverShowTutorial() {
+    await AsyncStorage.setItem('friends_tutorial_done', 'true')
+    setShowTutorial(false)
+  }
 
   async function loadFriends() {
     if (!user) return
     try {
       const raw = await getMyFriends(user.uid)
       const profiles = await Promise.all(raw.map(f => getUserProfile(f.friendUid)))
-      setFriends(raw.map((f, i) => ({
+      const list = raw.map((f, i) => ({
         ...f,
         nickname: profiles[i]?.nickname || '알 수 없음',
         photoUrl: profiles[i]?.photoUrl,
         photoThumbUrl: profiles[i]?.photoThumbUrl,
-      })))
+        birthdate: profiles[i]?.privateBirthdate ? null : (profiles[i]?.birthdate ?? null),
+      }))
+      setFriends(list)
+      const done = await AsyncStorage.getItem('friends_tutorial_done')
+      if (list.length === 0 || !done) setShowTutorial(true)
     } catch { showToast('친구 목록을 불러오지 못했어요', 'error') }
   }
 
@@ -152,7 +200,7 @@ export default function FriendsPage() {
   const s = makeStyles(colors)
   const cs = makeCommonStyles(colors)
 
-  const renderPost = ({ item }: { item: Post }) => {
+  const renderPost: ListRenderItem<Post> = ({ item }) => {
     const friend = friends.find(f => f.friendUid === item.uid)
     return (
       <PostCard
@@ -161,6 +209,8 @@ export default function FriendsPage() {
         readOnly
         authorName={friend?.nickname || '알 수 없음'}
         authorThumb={friend?.photoThumbUrl || friend?.photoUrl}
+        authorBirthdate={friend?.birthdate}
+        highlighted={item.id === activeHighlight}
       />
     )
   }
@@ -191,10 +241,10 @@ export default function FriendsPage() {
       </View>
 
       {/* 탭 */}
-      <View style={s.tabBar}>
+      <View style={cs.tabBar}>
         {(['feed', 'calendar'] as ViewMode[]).map(mode => (
-          <TouchableOpacity key={mode} style={[s.tabBtn, viewMode === mode && s.tabBtnActive]} onPress={() => setViewMode(mode)}>
-            <AppText style={[s.tabBtnText, viewMode === mode && s.tabBtnTextActive]}>
+          <TouchableOpacity key={mode} style={[cs.tabBtn, viewMode === mode && cs.tabBtnActive]} onPress={() => setViewMode(mode)}>
+            <AppText style={[cs.tabBtnText, viewMode === mode && cs.tabBtnTextActive]}>
               {mode === 'feed' ? '최근 하루' : '달력 보기'}
             </AppText>
           </TouchableOpacity>
@@ -218,11 +268,15 @@ export default function FriendsPage() {
             </View>
           ) : (
             <FlatList
+              ref={flatListRef}
               data={feedPosts}
               keyExtractor={p => p.id}
               contentContainerStyle={s.list}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadFeed(true)} tintColor={colors.primary} />}
               ListEmptyComponent={<View style={s.center}><AppText style={s.emptyText}>친구의 조각이 없어요 😭</AppText></View>}
+              onScrollToIndexFailed={info => {
+                setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.highestMeasuredFrameIndex, animated: true }), 100)
+              }}
               renderItem={renderPost}
             />
           )
@@ -249,6 +303,55 @@ export default function FriendsPage() {
           />
         )}
       </View>
+
+      {/* 친구 탭 튜토리얼 */}
+      <Modal visible={showTutorial} transparent animationType="fade" statusBarTranslucent>
+        <Pressable style={cs.tutorialOverlay} onPress={closeTutorial}>
+          <Pressable
+            style={[cs.tutorialCloseBtn, { top: insets.top + 10 }]}
+            onPress={closeTutorial}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={22} color="#fff" />
+          </Pressable>
+
+          <Pressable style={[cs.tutorialCard, { backgroundColor: colors.surface }]} onPress={e => e.stopPropagation()}>
+            <View style={s.tutorialCardTitleRow}>
+              <Ionicons name="person" size={20} color={colors.textMuted} />
+              <AppText title style={[cs.tutorialCardTitle, { color: colors.text }]}>
+                친구의 조각 안내
+              </AppText>
+            </View>
+
+            {TUTORIAL_TIPS.map((tip, i) => (
+              <View key={i}>
+                <View style={cs.tutorialRow}>
+                  <View style={[cs.tutorialIconBox, { backgroundColor: colors.primaryLight2 }]}>
+                    <Ionicons name={tip.icon as any} size={22} color={colors.primary} />
+                  </View>
+                  <View style={cs.tutorialTextWrap}>
+                    <AppText style={[cs.tutorialLabel, { color: colors.text }]}>{tip.label}</AppText>
+                    <AppText style={[cs.tutorialDesc, { color: colors.textMuted }]}>{tip.desc}</AppText>
+                  </View>
+                </View>
+                {i < TUTORIAL_TIPS.length - 1 && (
+                  <View style={[cs.tutorialDivider, { backgroundColor: colors.border }]} />
+                )}
+              </View>
+            ))}
+
+            <Pressable
+              style={[cs.tutorialDoneBtn, { backgroundColor: colors.primary }]}
+              onPress={closeTutorial}
+            >
+              <AppText style={[cs.tutorialDoneBtnText, { color: colors.white }]}>확인했어요</AppText>
+            </Pressable>
+            <Pressable style={cs.tutorialNeverBtn} onPress={neverShowTutorial}>
+              <AppText style={[cs.tutorialNeverText, { color: colors.textMuted }]}>다신 안보기🚫</AppText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 친구 추가 모달 */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
@@ -291,7 +394,7 @@ export default function FriendsPage() {
                   <View key={u.uid} style={s.userRow}>
                     <View style={s.userAvatar}>
                       {u.photoThumbUrl || u.photoUrl
-                        ? <Image source={{ uri: u.photoThumbUrl || u.photoUrl! }} style={s.userAvatarImg} />
+                        ? <Image source={{ uri: u.photoThumbUrl || u.photoUrl! }} style={s.userAvatarImg} cachePolicy="memory-disk" />
                         : <AppText style={s.userAvatarText}>{u.nickname[0]}</AppText>}
                     </View>
                     <View style={{ flex: 1 }}>
@@ -299,16 +402,16 @@ export default function FriendsPage() {
                       <AppText style={s.userEmail}>{u.email}</AppText>
                     </View>
                     {!s2 ? (
-                      <TouchableOpacity style={s.reqBtn} onPress={() => handleRequest(u.uid)}>
-                        <AppText style={s.reqBtnText}>요청</AppText>
+                      <TouchableOpacity style={[s.reqBtn, {backgroundColor: colors.mint}]} onPress={() => handleRequest(u.uid)}>
+                        <AppText style={[s.reqBtnText, {color: colors.primary}]}>요청하기</AppText>
                       </TouchableOpacity>
                     ) : s2.status === 'pending' ? (
-                      <View style={[s.reqBtn, { backgroundColor: colors.gray200 }]}>
-                        <AppText style={[s.reqBtnText, { color: colors.textMuted }]}>요청됨</AppText>
+                      <View style={[s.reqBtn, { borderColor: colors.textMuted }]}>
+                        <AppText style={[s.reqBtnText, { color: colors.textMuted }]}>요청중</AppText>
                       </View>
                     ) : (
-                      <View style={[s.reqBtn, { backgroundColor: colors.mint }]}>
-                        <AppText style={[s.reqBtnText, { color: colors.text }]}>친구</AppText>
+                      <View style={[s.reqBtn, { borderColor: colors.primary }]}>
+                        <AppText style={[s.reqBtnText, { color: colors.primary }]}>친구</AppText>
                       </View>
                     )}
                   </View>
@@ -344,13 +447,8 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
       justifyContent: 'center', alignItems: 'center',
     },
     filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    filterChipText: { fontSize: 14, color: colors.text, fontWeight: '600' },
+    filterChipText: { fontSize: 14, color: colors.text, fontWeight: '600', lineHeight: 18 },
     filterChipTextActive: { color: '#fff' },
-    tabBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-    tabBtn: { flex: 1, height: 44, justifyContent: 'center', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-    tabBtnActive: { borderBottomColor: colors.primary },
-    tabBtnText: { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
-    tabBtnTextActive: { color: colors.primary, fontWeight: '700' },
     list: { padding: 16, gap: 12 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, gap: 20 },
     emptyText: { color: colors.textMuted, fontSize: 17, textAlign: 'center', paddingHorizontal: 32 },
@@ -364,8 +462,9 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     searchRow: { flexDirection: 'row', gap: 8 },
     searchInput: {
       flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
-      borderRadius: 20, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.text,
-      fontFamily: 'GmarketSansMedium',
+      borderRadius: 20, paddingHorizontal: 12, height: 36,
+      textAlignVertical: 'center', paddingVertical: 6,
+      fontSize: 15, color: colors.text, fontFamily: 'GmarketSansMedium', includeFontPadding: false,
     },
     searchBtn: { backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
     searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
@@ -374,9 +473,17 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     userAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     userAvatarImg: { width: 40, height: 40, borderRadius: 20 },
     userAvatarText: { fontSize: 16, fontWeight: '700', color: colors.primary },
-    userName: { fontSize: 15, fontWeight: '700', color: colors.text },
-    userEmail: { fontSize: 14, color: colors.textMuted, paddingTop:5 },
-    reqBtn: { backgroundColor: colors.primary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 6 },
-    reqBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
+    userName: { fontSize: 15, fontWeight: '700', color: colors.text, lineHeight: 19 },
+    userEmail: { fontSize: 14, color: colors.textMuted, paddingTop:5, lineHeight: 18 },
+    reqBtn: { borderColor: colors.primary, borderWidth: 1, borderRadius: 15, paddingHorizontal: 12, height: 30, justifyContent: 'center', alignItems: 'center' },
+    reqBtnText: { color: colors.primary, fontSize: 14, fontWeight: '500' },
+
+    tutorialCardTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginBottom: 24,
+    },
   })
 }

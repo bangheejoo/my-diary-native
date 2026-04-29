@@ -74,8 +74,8 @@ export default function SignupPage() {
     <SafeAreaView style={cs.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity onPress={() => router.back()} style={cs.backBtn}>
-            <AppText style={cs.backText}>〈 </AppText>
+          <TouchableOpacity onPress={() => router.back()} style={cs.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
           </TouchableOpacity>
 
           <AppText style={s.title}>회원가입</AppText>

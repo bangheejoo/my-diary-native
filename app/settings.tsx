@@ -5,6 +5,7 @@ import {
 import AppText from '../src/components/AppText'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useAuth } from '../src/context/AuthContext'
 import { useTheme } from '../src/context/ThemeContext'
@@ -19,10 +20,11 @@ type Visibility = 'private' | 'friends' | 'us'
 
 const COLOR_OPTIONS: { value: ColorTheme; label: string; colors: string[] }[] = [
   { value: 'pink',   label: '핑크',   colors: ['#F29199', '#F2BDC1', '#CEF2E8'] },
-  { value: 'blue',   label: '블루',   colors: ['#7DAFFF', '#BFD9FF', '#FFE2BD'] },
-  { value: 'green',  label: '그린',   colors: ['#7ED9B5', '#BFF2DE', '#90ddd3'] },
-  { value: 'yellow', label: '옐로우', colors: ['#FFD97D', '#FFF0B3', '#93df6d'] },
-  { value: 'purple', label: '퍼플',   colors: ['#B39DDB', '#D6C8F2', '#F7CAC9'] },
+  { value: 'blue',   label: '블루',   colors: ['#6aa3ff', '#BFD9FF', '#FFE2BD'] },
+  { value: 'green',  label: '그린',   colors: ['#9bd428', '#b8f051', '#90ddd3'] },
+  { value: 'yellow', label: '옐로우', colors: ['#fcd06a', '#ffea98', '#93df6d'] },
+  { value: 'purple', label: '퍼플',   colors: ['#b993ff', '#cfb8ea', '#F7CAC9'] },
+  { value: 'coral', label: '코랄',   colors: ['#FF9A8B', '#FFC3A0', '#FFE8D6'] },
 ]
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string; desc: string }[] = [
@@ -82,7 +84,7 @@ export default function SettingsPage() {
     setDeleting(true)
     try {
       await deleteAccount(deletePassword)
-      await AsyncStorage.multiRemove(['colorTheme', 'darkMode', 'fontSize', 'defaultVisibility'])
+      await AsyncStorage.multiRemove(['colorTheme', 'darkMode', 'fontSize', 'defaultVisibility', `write_draft_${user!.uid}`])
       showToast('계정이 삭제됐어요')
       router.replace('/(auth)/login')
     } catch (err) {
@@ -104,7 +106,7 @@ export default function SettingsPage() {
     <SafeAreaView style={cs.safe} edges={['top']}>
       <View style={cs.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <AppText style={s.back}>〈</AppText>
+          <Ionicons name="chevron-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <AppText style={s.title}>설정하기</AppText>
         <View style={s.backBtn} />
@@ -116,15 +118,15 @@ export default function SettingsPage() {
           <AppText style={cs.sectionTitle}>테마</AppText>
           <View style={s.themeRow}>
             {[
-              { label: '라이트모드', icon: '☀️', dark: false },
-              { label: '다크모드',  icon: '🌙', dark: true  },
+              { label: '라이트모드', dark: false },
+              { label: '다크모드',  dark: true  },
             ].map(opt => (
               <TouchableOpacity
                 key={String(opt.dark)}
                 style={[s.themeBtn, isDark === opt.dark && s.themeBtnActive]}
                 onPress={() => { if (isDark !== opt.dark) toggleDark() }}
               >
-                <AppText style={s.themeBtnIcon}>{opt.icon}</AppText>
+                <Ionicons name={opt.dark ? 'moon-outline':'sunny-outline'} size={34} color={colors.gray500} style={isDark === opt.dark && s.themeBtnTextActive} />
                 <AppText style={[s.themeBtnText, isDark === opt.dark && s.themeBtnTextActive]}>{opt.label}</AppText>
               </TouchableOpacity>
             ))}
@@ -178,7 +180,7 @@ export default function SettingsPage() {
               onPress={() => handleDefaultVisibility(opt.value)}
             >
               <AppText style={[s.visibilityLabel, defaultVisibility === opt.value && s.visibilityLabelActive]}>{opt.label}</AppText>
-              <AppText style={s.visibilityDesc}>{opt.desc}</AppText>
+              <AppText style={[s.visibilityDesc, defaultVisibility === opt.value && s.visibilityDescActive]}>{opt.desc}</AppText>
             </TouchableOpacity>
           ))}
         </View>
@@ -217,10 +219,32 @@ export default function SettingsPage() {
           ))}
         </View>
 
+        {/* 가이드 다시 보기 */}
+        <View style={s.section}>
+          <AppText style={cs.sectionTitle}>가이드</AppText>
+          <AppText style={[s.guideDesc, { color: colors.textMuted }]}>
+          📖 온보딩과 각 화면의 튜토리얼을 언제든 다시 볼 수 있어요
+          </AppText>
+          <TouchableOpacity
+            style={[s.guideBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={async () => {
+              await AsyncStorage.multiRemove([
+                'onboarding_done',
+                'write_tutorial_done',
+                'friends_tutorial_done',
+              ])
+              router.replace('/onboarding')
+            }}
+          >
+            <AppText style={[s.guideBtnText, { color: colors.textMuted }]}>가이드 다시 보기</AppText>
+            <Ionicons name="chevron-forward" size={18} color={colors.gray500} />
+          </TouchableOpacity>
+        </View>
+
         {/* 계정 삭제 */}
         <View style={[s.section, { marginTop: 12 }]}>
           <AppText style={cs.sectionTitle}>계정 삭제</AppText>
-          <AppText style={s.dangerDesc}>※ 계정을 삭제하면 모든 데이터가 삭제되며 복구할 수 없어요</AppText>
+          <AppText style={s.dangerDesc}>🚫 계정을 삭제하면 모든 데이터가 삭제되며 복구할 수 없어요</AppText>
           <TouchableOpacity style={s.dangerBtn} onPress={() => setShowDeleteModal(true)}>
             <AppText style={s.dangerBtnText}>계정 삭제</AppText>
           </TouchableOpacity>
@@ -259,7 +283,6 @@ export default function SettingsPage() {
 function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getThemeColors>) {
   return StyleSheet.create({
     backBtn: { width: 44, height: 44, justifyContent: 'center' },
-    back: { fontSize: 18, color: colors.textMuted },
     title: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center' },
     body: { padding: 16, paddingBottom: 48, gap: 20 },
     section: { gap: 10 },
@@ -271,18 +294,18 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
     },
     themeBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight2, opacity: 0.7 },
     themeBtnIcon: { fontSize: 24 },
-    themeBtnText: { fontSize: 14, fontWeight: '600', color: colors.text },
-    themeBtnTextActive: { color: colors.primaryDark2 },
+    themeBtnText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+    themeBtnTextActive: { color: colors.primaryDark, fontWeight: '700' },
     colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     colorBtn: {
-      alignItems: 'center', gap: 10, padding: 20, borderRadius: 10,
-      borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, minWidth: 104,
+      alignItems: 'center', gap: 10, padding: 20, borderRadius: 10, minWidth: 90,
+      borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface, flex: 1
     },
     colorBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight2, opacity: 0.7 },
     swatchRow: { flexDirection: 'row', gap: 2 },
     swatch: { width: 14, height: 14, borderRadius: 7 },
     colorLabel: { fontSize: 15, color: colors.textMuted, fontWeight: '600' },
-    colorLabelActive: { color: colors.primaryDark2 },
+    colorLabelActive: { color: colors.primaryDark, fontWeight: '700' },
     fontRow: { flexDirection: 'row', gap: 8 },
     fontBtn: {
       flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10,
@@ -290,15 +313,16 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
     },
     fontBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight2, opacity: 0.7 },
     fontBtnText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
-    fontBtnTextActive: { color: colors.primaryDark2 },
+    fontBtnTextActive: { color: colors.primaryDark, fontWeight: '700' },
     visibilityBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       padding: 14, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface,
     },
     visibilityBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight2, opacity: 0.7 },
-    visibilityLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
-    visibilityLabelActive: { color: colors.primaryDark2 },
-    visibilityDesc: { fontSize: 14, color: colors.textMuted },
+    visibilityLabel: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
+    visibilityLabelActive: { color: colors.primaryDark, fontWeight: '700' },
+    visibilityDesc: { fontSize: 14, color: colors.gray500 },
+    visibilityDescActive: { color: colors.primaryDark },
     notifRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingVertical: 12, paddingHorizontal: 14,
@@ -306,9 +330,15 @@ function makeStyles(colors: ReturnType<typeof import('../src/theme/colors').getT
       borderWidth: 1, borderColor: colors.border,
     },
     notifRowDisabled: { opacity: 0.45 },
-    notifLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
-    notifSubLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
+    notifLabel: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
+    notifSubLabel: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
     notifLabelMuted: { color: colors.textMuted },
+    guideDesc: { fontSize: 14, lineHeight: 19 },
+    guideBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      padding: 14, borderRadius: 10, borderWidth: 1.5,
+    },
+    guideBtnText: { fontSize: 15, fontWeight: '600', flex: 1 },
     dangerDesc: { fontSize: 14, color: colors.textMuted, lineHeight: 18 },
     dangerBtn: {
       borderWidth: 1.5, borderColor: colors.primaryDark, borderRadius: 10, paddingVertical: 13, alignItems: 'center',

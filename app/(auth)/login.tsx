@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native'
 import AppText from '../../src/components/AppText'
+import { Ionicons } from '@expo/vector-icons'
 import { Link, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { logIn } from '../../src/services/authService'
@@ -49,7 +50,7 @@ export default function LoginPage() {
     <SafeAreaView style={cs.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-          <AppText title style={s.logo}>하루조각</AppText>
+          <AppText title style={s.logo}>하루조각 <Ionicons name="extension-puzzle-outline" size={26} color={colors.primary} /></AppText>
           <AppText style={s.sub}>소중한 하루의 조각을 모아 보세요</AppText>
 
           <View style={s.form}>
