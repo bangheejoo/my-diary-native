@@ -4,10 +4,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { AuthProvider, useAuth } from '../src/context/AuthContext'
 import { ThemeProvider } from '../src/context/ThemeContext'
 import { ToastProvider } from '../src/context/ToastContext'
-import { StyleSheet } from 'react-native'
+import { Platform, StyleSheet } from 'react-native'
 import { useFonts } from 'expo-font'
 import { fontAssets } from '../src/theme/fonts'
-import * as Notifications from 'expo-notifications'
 import { registerPushToken } from '../src/utils/registerPushToken'
 import { markNotificationRead } from '../src/services/friendService'
 
@@ -26,26 +25,28 @@ function handleNotifNavigation(data: NotifData) {
 
 function PushNotificationSetup() {
   const { user } = useAuth()
-  const responseListener = useRef<Notifications.EventSubscription | null>(null)
+  const responseListenerRef = useRef<{ remove: () => void } | null>(null)
 
   useEffect(() => {
     if (user) registerPushToken(user.uid).catch(() => {})
   }, [user])
 
   useEffect(() => {
-    // 앱이 완전히 종료된 상태에서 알림 탭으로 실행된 경우 처리
-    Notifications.getLastNotificationResponseAsync().then(response => {
+    if (Platform.OS === 'web') return
+
+    const Notifications = require('expo-notifications')
+
+    Notifications.getLastNotificationResponseAsync().then((response: any) => {
       if (!response) return
       const data = response.notification.request.content.data as NotifData
       handleNotifNavigation(data)
     })
 
-    // 백그라운드 상태에서 알림 탭 시 처리
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+    responseListenerRef.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data as NotifData
       handleNotifNavigation(data)
     })
-    return () => responseListener.current?.remove()
+    return () => responseListenerRef.current?.remove()
   }, [])
 
   return null

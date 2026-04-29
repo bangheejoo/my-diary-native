@@ -1,23 +1,28 @@
-import * as Notifications from 'expo-notifications'
-import * as Device from 'expo-device'
-import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 
-// 포그라운드에서도 알림 배너/소리 표시
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-})
+if (Platform.OS !== 'web') {
+  const Notifications = require('expo-notifications')
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  })
+}
 
 export async function registerPushToken(uid: string): Promise<void> {
-  if (!Device.isDevice) return  // 시뮬레이터에서는 skip
+  if (Platform.OS === 'web') return
+
+  const Device = require('expo-device')
+  const Notifications = require('expo-notifications')
+  const Constants = require('expo-constants').default
+
+  if (!Device.isDevice) return
 
   const { status: existing } = await Notifications.getPermissionsAsync()
   let finalStatus = existing
@@ -27,7 +32,6 @@ export async function registerPushToken(uid: string): Promise<void> {
   }
   if (finalStatus !== 'granted') return
 
-  // Android 알림 채널 설정
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: '기본 알림',
