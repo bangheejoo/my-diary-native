@@ -142,20 +142,22 @@ export default function CommentSection({ postId, postUid, currentUserUid, onProf
   }
 
   async function handleDelete(commentId: string) {
+    const doDelete = async () => {
+      try {
+        await deleteComment(commentId)
+        setComments(prev => prev.filter(c => c.id !== commentId))
+        setCommentCount(prev => Math.max(0, prev - 1))
+      } catch {
+        showToast('댓글 삭제에 실패했어요', 'error')
+      }
+    }
+    if (Platform.OS === 'web') {
+      if (window.confirm('이 댓글을 삭제할까요?')) await doDelete()
+      return
+    }
     Alert.alert('댓글 삭제', '이 댓글을 삭제할까요?', [
       { text: '취소', style: 'cancel' },
-      {
-        text: '삭제', style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteComment(commentId)
-            setComments(prev => prev.filter(c => c.id !== commentId))
-            setCommentCount(prev => Math.max(0, prev - 1))
-          } catch {
-            showToast('댓글 삭제에 실패했어요', 'error')
-          }
-        },
-      },
+      { text: '삭제', style: 'destructive', onPress: doDelete },
     ])
   }
 

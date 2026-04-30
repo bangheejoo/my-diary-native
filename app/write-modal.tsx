@@ -83,6 +83,7 @@ export default function WriteModal() {
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftValuesRef = useRef({ content, recordDate, visibility, targetUid, withUids, withNicknames, imageUri })
   const draftKeyRef = useRef<string | null>(null)  // 언마운트 cleanup용
+  const draftKey = user ? `write_draft_${user.uid}` : null
 
   useEffect(() => {
     async function loadDefaults() {
@@ -142,8 +143,6 @@ export default function WriteModal() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey])
-
-  const draftKey = user ? `write_draft_${user.uid}` : null
 
   // hasDraftRef / draftKeyRef 동기화 (unmount closure 용)
   useEffect(() => { hasDraftRef.current = hasDraft }, [hasDraft])
@@ -339,24 +338,26 @@ export default function WriteModal() {
 
   async function handleDelete() {
     if (!id) return
+    const doDelete = async () => {
+      setDeleting(true)
+      try {
+        if (existingImagePath) await deleteImage(existingImagePath)
+        await deletePost(id)
+        showToast('조각이 삭제됐어요')
+        router.back()
+      } catch {
+        showToast('삭제에 실패했어요', 'error')
+      } finally {
+        setDeleting(false)
+      }
+    }
+    if (Platform.OS === 'web') {
+      if (window.confirm('이 조각을 삭제할까요?')) await doDelete()
+      return
+    }
     Alert.alert('조각 삭제', '이 조각을 삭제할까요?', [
       { text: '취소', style: 'cancel' },
-      {
-        text: '삭제', style: 'destructive',
-        onPress: async () => {
-          setDeleting(true)
-          try {
-            if (existingImagePath) await deleteImage(existingImagePath)
-            await deletePost(id)
-            showToast('조각이 삭제됐어요')
-            router.back()
-          } catch {
-            showToast('삭제에 실패했어요', 'error')
-          } finally {
-            setDeleting(false)
-          }
-        },
-      },
+      { text: '삭제', style: 'destructive', onPress: doDelete },
     ])
   }
 

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Stack, router } from 'expo-router'
+import Head from 'expo-router/head'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { AuthProvider, useAuth } from '../src/context/AuthContext'
-import { ThemeProvider } from '../src/context/ThemeContext'
+import { ThemeProvider, useTheme } from '../src/context/ThemeContext'
 import { ToastProvider } from '../src/context/ToastContext'
-import { Platform, StyleSheet } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 import { useFonts } from 'expo-font'
 import { fontAssets } from '../src/theme/fonts'
 import { registerPushToken } from '../src/utils/registerPushToken'
@@ -52,22 +53,54 @@ function PushNotificationSetup() {
   return null
 }
 
+function WebContainer({ children }: { children: ReactNode }) {
+  const { colors, isDark } = useTheme()
+  if (Platform.OS !== 'web') return <>{children}</>
+  return (
+    <View style={{ flex: 1, backgroundColor: isDark ? '#0a0e17' : '#e5e7eb' }}>
+      <View style={{
+        flex: 1,
+        maxWidth: 430,
+        width: '100%',
+        alignSelf: 'center',
+        backgroundColor: colors.bg,
+        overflow: 'hidden',
+      }}>
+        {children}
+      </View>
+    </View>
+  )
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts(fontAssets)
 
   if (!fontsLoaded) return null
 
   return (
+    <>
+      {Platform.OS === 'web' && (
+        <Head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+          <style>{`
+            html, body, #root { height: 100%; margin: 0; padding: 0; }
+            * { box-sizing: border-box; }
+          `}</style>
+        </Head>
+      )}
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider>
         <AuthProvider>
           <ToastProvider>
-            <PushNotificationSetup />
-            <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 220 }} />
+            <WebContainer>
+              <PushNotificationSetup />
+              <Stack screenOptions={{ headerShown: false, animation: Platform.OS === 'web' ? 'none' : 'fade', animationDuration: 220 }} />
+            </WebContainer>
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
+    </>
   )
 }
 

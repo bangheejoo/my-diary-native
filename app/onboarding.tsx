@@ -17,7 +17,8 @@ import { useAuth } from '../src/context/AuthContext'
 import AppText from '../src/components/AppText'
 import type { AppColors } from '../src/theme/colors'
 
-const { width } = Dimensions.get('window')
+const { width: screenWidth } = Dimensions.get('window')
+const width = Math.min(screenWidth, 430)
 
 // ── 애니메이션 훅 ────────────────────────────────────────────────────
 
@@ -194,7 +195,9 @@ export default function Onboarding() {
   }
 
   const goNext = () => {
-    flatRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true })
+    const next = Math.min(currentIndex + 1, PAGES.length - 1)
+    flatRef.current?.scrollToIndex({ index: next, animated: true })
+    setCurrentIndex(next)
   }
 
   return (
@@ -220,10 +223,18 @@ export default function Onboarding() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        style={{ flex: 1 }}
         getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
+          {
+            useNativeDriver: false,
+            listener: (e: any) => {
+              const x = e.nativeEvent.contentOffset.x
+              const idx = Math.round(x / width)
+              if (idx >= 0 && idx < PAGES.length) setCurrentIndex(idx)
+            },
+          }
         )}
         onMomentumScrollEnd={e => {
           setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / width))

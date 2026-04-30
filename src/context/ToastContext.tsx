@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react'
-import { View, Text, StyleSheet, Animated, Platform, Keyboard } from 'react-native'
+import { View, Text, StyleSheet, Platform, Keyboard } from 'react-native'
 
 interface ToastMessage {
   id: number

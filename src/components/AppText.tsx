@@ -1,4 +1,4 @@
-import { Text, StyleSheet } from 'react-native'
+import { Text, StyleSheet, Platform } from 'react-native'
 import type { TextProps, TextStyle } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 
@@ -19,7 +19,11 @@ export default function AppText({ style, title = false, ...props }: AppTextProps
   const { fontScale } = useTheme()
   const flat = StyleSheet.flatten(style) as TextStyle | undefined
   const fontFamily = resolveFontFamily(flat?.fontWeight, title)
-  const override: TextStyle = { fontFamily }
+  const override: TextStyle = {
+    fontFamily,
+    // 웹에서 fontFamily를 직접 지정할 때 브라우저가 synthetic bold를 중복 적용하는 것을 방지
+    ...(Platform.OS === 'web' ? { fontWeight: 'normal' } : {}),
+  }
   if (flat?.fontSize != null) {
     override.fontSize = Math.round(flat.fontSize * fontScale)
   }
