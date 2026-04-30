@@ -88,6 +88,7 @@ export default function MyPage() {
 
   // 프로필 사진 확대
   const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [photoLoadError, setPhotoLoadError] = useState(false)
 
   // 친구 프로필 모달
   const [friendProfileTarget, setFriendProfileTarget] = useState<{ uid: string; nickname: string; photoThumb?: string | null } | null>(null)
@@ -273,6 +274,7 @@ export default function MyPage() {
       const { url, thumbUrl } = await uploadProfilePhoto(result.assets[0].uri, user.uid)
       await updateProfilePhoto(user.uid, url, thumbUrl)
       await refreshProfile()
+      setPhotoLoadError(false)
       showToast('프로필 사진이 변경됐어요', 'success')
     } catch (err) {
       showToast((err as Error).message || '사진 업로드에 실패했어요', 'error')
@@ -346,8 +348,15 @@ export default function MyPage() {
           <View style={s.avatar}>
             {photoUploading
               ? <ActivityIndicator color={colors.primary} />
-              : profile?.photoThumbUrl || profile?.photoUrl
-                ? <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.8}><Image source={{ uri: profile.photoThumbUrl || profile.photoUrl! }} style={s.avatarImg} cachePolicy="memory-disk" /></TouchableOpacity>
+              : (profile?.photoThumbUrl || profile?.photoUrl) && !photoLoadError
+                ? <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.8}>
+                    <Image
+                      source={{ uri: profile!.photoThumbUrl || profile!.photoUrl! }}
+                      style={s.avatarImg}
+                      cachePolicy="memory-disk"
+                      onError={() => setPhotoLoadError(true)}
+                    />
+                  </TouchableOpacity>
                 : <AppText style={s.avatarText}>{displayName[0]}</AppText>}
             <View style={s.cameraBadge}><AppText style={{ fontSize: 16, lineHeight: 20 }}>📷</AppText></View>
           </View>

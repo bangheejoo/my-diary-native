@@ -28,6 +28,7 @@ export default function PostCard({ post, currentUserUid, onEdit, readOnly = fals
 
   const [profileTarget, setProfileTarget] = useState<{ uid: string; nickname: string; photoThumb?: string | null } | null>(null)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [authorThumbError, setAuthorThumbError] = useState(false)
 
   const badgeStyle = post.visibility === 'private' ? s.badgeGray
     : post.visibility === 'us' ? s.badgePink
@@ -61,8 +62,8 @@ export default function PostCard({ post, currentUserUid, onEdit, readOnly = fals
           >
             <View style={{ position: 'relative' }}>
               <View style={[s.authorAvatar, isBirthday(authorBirthdate) && s.birthdayAvatar]}>
-                {authorThumb
-                  ? <Image source={{ uri: authorThumb }} style={s.authorAvatarImg} cachePolicy="memory-disk" />
+                {authorThumb && !authorThumbError
+                  ? <Image source={{ uri: authorThumb }} style={s.authorAvatarImg} cachePolicy="memory-disk" onError={() => setAuthorThumbError(true)} />
                   : <AppText style={s.authorAvatarText}>{authorName[0]}</AppText>}
               </View>
               {isBirthday(authorBirthdate) && <AppText style={s.birthdayBadge}>🎂</AppText>}

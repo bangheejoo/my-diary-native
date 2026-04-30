@@ -1,13 +1,24 @@
 import { storage } from './firebase'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import * as ImageManipulator from 'expo-image-manipulator'
-import * as FileSystem from 'expo-file-system/legacy'
+import { Platform } from 'react-native'
 
 const MAX_SIZE = 5 * 1024 * 1024
 
 async function getFileSize(uri: string): Promise<number> {
+  // expo-file-system은 웹에서 지원하지 않으므로 플랫폼 분기
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(uri)
+      const blob = await response.blob()
+      return blob.size
+    } catch {
+      return 0
+    }
+  }
+  const FileSystem = require('expo-file-system/legacy')
   const info = await FileSystem.getInfoAsync(uri)
-  return info.exists ? (info as FileSystem.FileInfo & { size?: number }).size ?? 0 : 0
+  return info.exists ? (info.size ?? 0) : 0
 }
 
 async function uriToBlob(uri: string): Promise<Blob> {
