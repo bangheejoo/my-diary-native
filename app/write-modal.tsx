@@ -243,21 +243,7 @@ export default function WriteModal() {
     setShowImageSourceSheet(true)
   }
 
-  function pickFromCamera() {
-    pendingImageActionRef.current = 'camera'
-    setShowImageSourceSheet(false)
-  }
-
-  function pickFromGallery() {
-    pendingImageActionRef.current = 'gallery'
-    setShowImageSourceSheet(false)
-  }
-
-  async function runPendingImageAction() {
-    const action = pendingImageActionRef.current
-    if (!action) return
-    pendingImageActionRef.current = null
-
+  async function executePick(action: 'camera' | 'gallery') {
     if (action === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync()
       if (status !== 'granted') {
@@ -277,9 +263,36 @@ export default function WriteModal() {
     }
   }
 
-  // Android: onDismiss가 지원되지 않아 showImageSourceSheet가 false로 바뀐 후 실행
+  function pickFromCamera() {
+    setShowImageSourceSheet(false)
+    if (Platform.OS === 'web') {
+      // 웹: setTimeout을 거치면 브라우저 user gesture chain이 끊겨 파일 picker가 차단됨
+      // 클릭 핸들러에서 직접 호출해야 함
+      executePick('camera')
+      return
+    }
+    pendingImageActionRef.current = 'camera'
+  }
+
+  function pickFromGallery() {
+    setShowImageSourceSheet(false)
+    if (Platform.OS === 'web') {
+      executePick('gallery')
+      return
+    }
+    pendingImageActionRef.current = 'gallery'
+  }
+
+  async function runPendingImageAction() {
+    const action = pendingImageActionRef.current
+    if (!action) return
+    pendingImageActionRef.current = null
+    await executePick(action)
+  }
+
+  // Android: onDismiss가 지원되지 않아 showImageSourceSheet가 false로 바뀐 후 실행 (native only)
   useEffect(() => {
-    if (showImageSourceSheet || Platform.OS === 'ios') return
+    if (showImageSourceSheet || Platform.OS === 'ios' || Platform.OS === 'web') return
     const timer = setTimeout(runPendingImageAction, 300)
     return () => clearTimeout(timer)
   }, [showImageSourceSheet])

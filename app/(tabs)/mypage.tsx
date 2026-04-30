@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, Modal, Pressable, RefreshControl,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
 import AppText from '../../src/components/AppText'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -17,7 +18,7 @@ import {
 import {
   getMyNotifications, acceptFriendRequest, rejectFriendRequest,
   removeFriend, markNotificationRead, markAllNotificationsRead,
-  getFriendshipStatus, getMyFriends,
+  getFriendshipStatus, getMyFriends, sendMessage,
 } from '../../src/services/friendService'
 import { getMyPostCount, getWithMePostCount } from '../../src/services/postService'
 import { getMyCommentCount } from '../../src/services/commentService'
@@ -89,6 +90,7 @@ export default function MyPage() {
   // 프로필 사진 확대
   const [showPhotoModal, setShowPhotoModal] = useState(false)
   const [photoLoadError, setPhotoLoadError] = useState(false)
+  const [bioFocused, setBioFocused] = useState(false)
 
   // 친구 프로필 모달
   const [friendProfileTarget, setFriendProfileTarget] = useState<{ uid: string; nickname: string; photoThumb?: string | null } | null>(null)
@@ -97,6 +99,9 @@ export default function MyPage() {
   const [friendToRemove, setFriendToRemove] = useState<FriendWithProfile | null>(null)
   const [removingFriend, setRemovingFriend] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [replyTarget, setReplyTarget] = useState<{ uid: string; nickname: string } | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [replySending, setReplySending] = useState(false)
 
   useEffect(() => {
     if (params.tab && ['profile', 'notifications', 'friends'].includes(params.tab)) {
@@ -281,6 +286,21 @@ export default function MyPage() {
     } finally { setPhotoUploading(false) }
   }
 
+  async function handleSendReply() {
+    if (!user || !replyTarget || !replyText.trim() || replySending) return
+    setReplySending(true)
+    try {
+      await sendMessage(user.uid, replyTarget.uid, replyText.trim())
+      showToast('메세지를 보냈어요', 'success')
+      setReplyText('')
+      setReplyTarget(null)
+    } catch {
+      showToast('메세지 전송에 실패했어요', 'error')
+    } finally {
+      setReplySending(false)
+    }
+  }
+
   async function handleMarkAllRead() {
     if (!user) return
     await markAllNotificationsRead(user.uid).catch(() => {})
@@ -440,29 +460,21 @@ export default function MyPage() {
             
             {/* 나의 한마디 */}
             <AppText style={[cs.sectionTitle, { marginTop: 20 }]}>나의 한마디</AppText>
-            <View style={s.bioRow}>
-              {editingBio ? (
-                <TextInput
-                  style={s.bioInput}
-                  value={bio}
-                  onChangeText={setBio}
-                  placeholder="한 줄로 나를 소개해 보세요"
-                  placeholderTextColor={colors.gray500}
-                  maxLength={40}
-                  autoFocus
-                  onBlur={() => {
-                    bioBlurTimer.current = setTimeout(() => { handleBioSave() }, 200)
-                  }}
-                />
-              ) : (
-                <AppText
-                  style={[s.bioText, { color: bio ? colors.text : colors.gray500 }]}
-                  numberOfLines={1}
-                  onPress={() => setEditingBio(true)}
-                >
-                  {bio || '한 줄로 나를 소개해 보세요'}
-                </AppText>
-              )}
+            <View style={[s.bioRow, bioFocused && { borderColor: colors.primary }]}>
+              <TextInput
+                style={[s.bioInput, { outline: 'none' } as any]}
+                value={bio}
+                onChangeText={setBio}
+                placeholder="한 줄로 나를 소개해 보세요"
+                placeholderTextColor={colors.gray500}
+                maxLength={40}
+                autoFocus={editingBio}
+                onFocus={() => setBioFocused(true)}
+                onBlur={() => {
+                  setBioFocused(false)
+                  bioBlurTimer.current = setTimeout(() => { handleBioSave() }, 200)
+                }}
+              />
               {!editingBio && (
                 <TouchableOpacity onPress={() => setEditingBio(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
@@ -491,7 +503,7 @@ export default function MyPage() {
             <View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput
-                  style={[cs.input, nickMsg && cs.inputError, { flex: 1 }]}
+                  style={[cs.input, nickStatus === 'fail' && cs.inputError, nickStatus === 'ok' && cs.inputOk, { flex: 1 }]}
                   placeholder="새 닉네임 (2~12자)"
                   placeholderTextColor={colors.gray500}
                   value={newNick}
@@ -560,8 +572,13 @@ export default function MyPage() {
                     : n.type === 'message' ? `${n.fromNickname}님이 '${n.message}' 메세지를 보냈어요`
                     : `${n.fromNickname}님이 내 조각에 공감을 남겼어요`
                   const hasPost = !!n.postId && (n.type === 'comment' || n.type === 'reaction' || n.type === 'mention' || n.type === 'with')
+                  const isMessage = n.type === 'message'
                   function handleNotifPress() {
                     if (!n.read) markNotificationRead(n.id)
+                    if (isMessage) {
+                      setReplyTarget({ uid: n.fromUid, nickname: n.fromNickname })
+                      return
+                    }
                     if (n.type === 'with') {
                       router.push({ pathname: '/(tabs)/friends', params: { highlightPostId: n.postId } })
                     } else {
@@ -572,8 +589,8 @@ export default function MyPage() {
                     <TouchableOpacity
                       key={n.id}
                       style={[s.notifItem]}
-                      onPress={hasPost ? handleNotifPress : undefined}
-                      activeOpacity={hasPost ? 0.7 : 1}
+                      onPress={hasPost || isMessage ? handleNotifPress : undefined}
+                      activeOpacity={hasPost || isMessage ? 0.7 : 1}
                     >
                       <View style={s.notifAvatar}>
                         {n.fromPhotoThumb
@@ -598,6 +615,8 @@ export default function MyPage() {
                           <View style={s.processedBadge}>
                             <AppText style={s.processedBadgeText}>처리완료</AppText>
                           </View>
+                        ) : isMessage ? (
+                          <Ionicons name="arrow-undo-outline" size={16} color={colors.primary} />
                         ) : hasPost ? (
                           <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
                         ) : null}
@@ -699,6 +718,49 @@ export default function MyPage() {
         </View>
       )}
 
+      {/* 답장 시트 */}
+      <Modal
+        visible={!!replyTarget}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setReplyTarget(null); setReplyText('') }}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <Pressable style={cs.sheetOverlay} onPress={() => { setReplyTarget(null); setReplyText('') }}>
+            <Pressable style={[cs.sheet, { gap: 12 }]} onPress={e => e.stopPropagation()}>
+              <View style={cs.sheetHeader}>
+                <AppText style={cs.sheetTitle}>{replyTarget?.nickname}님에게 답장</AppText>
+                <TouchableOpacity style={cs.sheetCloseBtn} onPress={() => { setReplyTarget(null); setReplyText('') }}>
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  style={[cs.input, { flex: 1, ...(Platform.OS === 'web' ? { outline: 'none' } as any : {}) }]}
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  placeholder="메세지를 입력해 주세요"
+                  placeholderTextColor={colors.gray500}
+                  maxLength={100}
+                  autoFocus
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendReply}
+                />
+                <TouchableOpacity
+                  style={[cs.btnPrimary, { paddingVertical: 12, paddingHorizontal: 18, opacity: !replyText.trim() || replySending ? 0.45 : 1 }]}
+                  onPress={handleSendReply}
+                  disabled={!replyText.trim() || replySending}
+                >
+                  {replySending
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <AppText style={[cs.btnPrimaryText, { fontSize: 14 }]}>보내기</AppText>}
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* 로그아웃 확인 모달 */}
       {showLogoutModal && (
         <View style={cs.confirmOverlay}>
@@ -763,7 +825,7 @@ function makeStyles(colors: ReturnType<typeof import('../../src/theme/colors').g
     infoLabel: { fontSize: 15, color: colors.textMuted },
     infoValue: { fontSize: 14, fontWeight: '500', color: colors.text, lineHeight: 18 },
     infoValueRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    checkBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center', minWidth: 72 },
+    checkBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
     checkBtnOk: { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
     checkBtnText: { fontSize: 14, fontWeight: '600', color: colors.text, textAlign: 'center' },
     btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },

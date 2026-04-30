@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, ScrollView,
@@ -19,7 +19,7 @@ import type { UserProfile } from '../../src/services/authService'
 import { getFriendsPosts, getFriendPostsByUid, getFriendPostsByDate } from '../../src/services/postService'
 import type { Post } from '../../src/services/postService'
 import { today } from '../../src/utils/formatDate'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useFocusEffect } from 'expo-router'
 import PostCard from '../../src/components/PostCard'
 import CalendarView from '../../src/components/CalendarView'
 import { SkeletonPostCard } from '../../src/components/Skeleton'
@@ -76,6 +76,10 @@ export default function FriendsPage() {
   const { openAdd, highlightPostId } = useLocalSearchParams<{ openAdd?: string; highlightPostId?: string }>()
 
   useEffect(() => { loadFriends() }, [user])
+
+  useFocusEffect(useCallback(() => {
+    if (user) loadFriends()
+  }, [user]))
 
   useEffect(() => {
     if (openAdd === '1') setShowAddModal(true)
